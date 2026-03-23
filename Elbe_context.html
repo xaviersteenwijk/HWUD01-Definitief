@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Elbe Estuary — European Port Portal</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root, [data-theme="dark"] {
+      --bg: #000; --bg-hero: radial-gradient(ellipse 100% 80% at 50% 0%, #0b0f2c, #000 70%);
+      --bg-sticky: rgba(0,0,0,0.95); --text: #fff; --text-muted: rgba(255,255,255,0.65);
+      --text-dim: rgba(255,255,255,0.35); --text-mid: rgba(255,255,255,0.5); --text-nav: rgba(255,255,255,0.75);
+      --border: rgba(255,255,255,0.05); --border-chart: rgba(255,255,255,0.35);
+      --bg-chart: rgba(255,255,255,0.025); --bg-note: rgba(255,255,255,0.04);
+      --bg-pill: #0b0f2c; --bg-pill-h: #141840; --bg-pill-on: #1a2060;
+      --border-pill: rgba(255,255,255,0.15); --border-pill-h: rgba(255,255,255,0.35); --border-pill-on: rgba(255,255,255,0.4);
+      --toggle-bg: rgba(255,255,255,0.1); --toggle-border: rgba(255,255,255,0.35);
+    }
+    [data-theme="light"] {
+      --bg: #f4f5f7; --bg-hero: radial-gradient(ellipse 100% 80% at 50% 0%, #d6dff5, #f4f5f7 70%);
+      --bg-sticky: rgba(244,245,247,0.97); --text: #0d1020; --text-muted: rgba(13,16,32,0.65);
+      --text-dim: rgba(13,16,32,0.4); --text-mid: rgba(13,16,32,0.5); --text-nav: rgba(13,16,32,0.75);
+      --border: rgba(0,0,0,0.07); --border-chart: rgba(0,0,0,0.2);
+      --bg-chart: rgba(0,0,0,0.03); --bg-note: rgba(0,0,0,0.04);
+      --bg-pill: #dde2f0; --bg-pill-h: #c8d0e8; --bg-pill-on: #2a3a80;
+      --border-pill: rgba(0,0,0,0.12); --border-pill-h: rgba(0,0,0,0.25); --border-pill-on: rgba(42,58,128,0.6);
+      --toggle-bg: rgba(0,0,0,0.08); --toggle-border: rgba(0,0,0,0.2);
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Poppins', sans-serif; transition: background .3s, color .3s; }
+    .wrap { max-width: 860px; margin: 0 auto; padding: 0 32px; }
+    .hero { background: var(--bg-hero); padding: 56px 0 40px; transition: background .3s; }
+    .hero .wrap { display: flex; gap: 48px; align-items: flex-start; }
+    .hero-left { flex: 1; }
+    .back-btn { display: inline-block; font-size: 13px; font-weight: 500; color: var(--text-dim); text-decoration: none; margin-bottom: 20px; transition: color .2s; cursor: pointer; }
+    .back-btn:hover { color: var(--text); }
+    .hero-left small { font-size: 11px; font-weight: 500; letter-spacing: 3px; text-transform: uppercase; color: var(--text-dim); display: block; margin-bottom: 14px; }
+    .hero-left h1 { font-size: clamp(42px,6vw,72px); font-weight: 700; line-height: 1; margin-bottom: 8px; }
+    .hero-left > p { font-size: 20px; font-weight: 300; color: var(--text-mid); margin-bottom: 36px; }
+    .map-cta { margin-top: 8px; }
+    .map-cta-text { font-size: 13px; font-weight: 300; color: var(--text-dim); line-height: 1.6; margin-bottom: 16px; max-width: 280px; }
+    .map-cta-btn {
+      display: inline-flex; align-items: center; gap: 10px;
+      padding: 12px 24px; border-radius: 40px;
+      background: transparent; border: 2px solid var(--border-chart);
+      color: var(--text); font-family: 'Poppins', sans-serif;
+      font-size: 14px; font-weight: 500; cursor: pointer;
+      text-decoration: none;
+      transition: background .2s, border-color .2s, color .2s;
+    }
+    .map-cta-btn:hover { background: var(--text); color: var(--bg); border-color: var(--text); }
+    .map-cta-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .hero-img { width: 260px; flex-shrink: 0; border-radius: 20px; border: 1px solid var(--border-chart); aspect-ratio: 3/4; object-fit: cover; background: linear-gradient(160deg,#8b6914,#5a3c0a 30%,#0a1e5c 60%,#050d2e); }
+    .toggle-btn { position: fixed; bottom: 24px; right: 24px; z-index: 200; display: flex; align-items: center; gap: 8px; background: var(--toggle-bg); color: var(--text); border: 1px solid var(--toggle-border); border-radius: 50px; padding: 9px 18px; font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 500; cursor: pointer; backdrop-filter: blur(8px); transition: background .2s, border-color .2s, color .2s; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
+    .toggle-btn:hover { border-color: var(--text); }
+    .pills { padding: 24px 0 0; }
+    .pills-sticky { position: sticky; top: 0; z-index: 50; background: var(--bg-sticky); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); transform: translateY(-100%); opacity: 0; transition: transform .3s, opacity .3s, background .3s; pointer-events: none; padding: 14px 0; }
+    .pills-sticky.show { transform: none; opacity: 1; pointer-events: all; }
+    .pills, .pills-sticky .wrap { display: flex; gap: 10px; flex-wrap: wrap; }
+    button { font-family: 'Poppins', sans-serif; font-size: 13px; color: var(--text); background: var(--bg-pill); border: 1.5px solid var(--border-pill); border-radius: 50px; padding: 9px 22px; cursor: pointer; transition: background .2s, border-color .2s, color .2s; }
+    button:hover { background: var(--bg-pill-h); border-color: var(--border-pill-h); }
+    button.on { background: var(--bg-pill-on); border-color: var(--border-pill-on); color: #fff; }
+    .content { padding: 0 0 100px; }
+    .intro { padding: 32px 0 44px; }
+    .intro h2 { font-size: 20px; font-weight: 600; margin-bottom: 14px; }
+    .intro p  { font-size: 14px; font-weight: 300; line-height: 1.85; color: var(--text-muted); }
+    section { padding: 32px 0 56px; border-top: 1px solid var(--border); scroll-margin-top: 70px; }
+    section h2 { font-size: 22px; font-weight: 700; margin-bottom: 24px; }
+    section p  { font-size: 14px; font-weight: 300; line-height: 1.85; color: var(--text-muted); margin-bottom: 16px; }
+    section p:last-child { margin-bottom: 0; }
+    .note { margin: 20px 0; padding: 16px 20px; background: var(--bg-note); border-left: 3px solid rgba(100,130,255,0.6); border-radius: 0 8px 8px 0; font-size: 13.5px; font-weight: 300; line-height: 1.75; color: var(--text-muted); }
+    .note b { display: block; font-size: 9px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: rgba(100,150,255,0.9); margin-bottom: 7px; }
+    .note strong { color: rgba(100,140,255,0.9); font-weight: 500; }
+    .note.warn { border-left-color: rgba(255,107,53,0.6); }
+    .note.warn b { color: rgba(255,120,60,0.9); }
+    .note.warn strong { color: rgba(255,120,60,0.9); }
+    .chart { margin: 28px 0; background: var(--bg-chart); border: 1px solid var(--border-chart); border-radius: 14px; padding: 24px 24px 18px; transition: background .3s, border-color .3s; }
+    .chart h3 { font-size: 11px; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 16px; }
+    .chart svg { display: block; width: 100%; overflow: visible; }
+    .chart small { display: block; font-size: 11px; font-weight: 300; font-style: italic; color: var(--text-dim); margin-top: 10px; }
+    /* ── MAP OVERLAY ── */
+    #mapOverlay { display:none; position:fixed; inset:0; z-index:1000; background:#070b11; flex-direction:column; }
+    #mapOverlay.open { display:flex; }
+
+    .map-nav { height:50px; background:#05080f; border-bottom:1px solid #1a2535; display:flex; align-items:center; padding:0 20px; gap:8px; flex-shrink:0; }
+    .map-nav-brand { font-size:13px; font-weight:600; color:#dce8f5; letter-spacing:.3px; margin-right: 16px; }
+
+    /* estuary switch tabs */
+    .map-tab { font-size:13px; color:#6a7d92; padding:6px 16px; border-radius:4px; cursor:pointer; border:none; background:transparent; font-family:'Poppins',sans-serif; transition:color .2s, background .2s; position:relative; }
+    .map-tab:hover { color:#dce8f5; background:rgba(255,255,255,.06); }
+    .map-tab.active { color:#dce8f5; }
+    .map-tab.active::after { content:''; position:absolute; bottom:0; left:16px; right:16px; height:2px; background:#4da6ff; }
+
+    .map-nav-close { margin-left:auto; font-size:13px; color:#6a7d92; padding:6px 16px; border-radius:4px; cursor:pointer; border:none; background:transparent; font-family:'Poppins',sans-serif; transition:color .2s, background .2s; }
+    .map-nav-close:hover { color:#dce8f5; background:rgba(255,255,255,.06); }
+
+    .map-body { flex:1; display:flex; overflow:hidden; }
+    .map-sidebar { width:292px; flex-shrink:0; background:rgba(9,14,22,.94); border-right:1px solid #1a2535; display:flex; flex-direction:column; overflow-y:auto; z-index:10; }
+    .sb-header { padding:18px 20px 14px; background:#080d14; border-bottom:1px solid #1a2535; }
+    .sb-title  { font-size:20px; font-weight:700; color:#dce8f5; }
+    .sb-sub    { font-size:10px; font-family:'JetBrains Mono',monospace; color:#6a7d92; }
+    .live-dot  { display:inline-flex; align-items:center; gap:6px; font-size:9px; color:#3dffa0; margin-top:6px; }
+    .live-dot::before { content:''; width:7px; height:7px; border-radius:50%; background:#3dffa0; animation:pulse 1.8s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .sb-section { border-top:1px solid #1a2535; padding:12px 0; }
+    .sb-section-label { font-size:9px; font-family:'JetBrains Mono',monospace; color:#6a7d92; padding:0 20px 10px; text-transform:uppercase; }
+    .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:0 16px; }
+    .stat-box  { background:#0d1520; border:1px solid #1a2535; border-radius:5px; padding:8px 10px; }
+    .stat-val  { font-size:15px; font-weight:700; color:#dce8f5; }
+    .stat-lbl  { font-size:8px; color:#6a7d92; }
+    .bathy-legend { margin:10px 16px 0; background:#0d1520; border:1px solid #1a2535; border-radius:5px; padding:8px 10px; }
+    .bathy-legend-title { font-size:9px; color:#6a7d92; margin-bottom:6px; font-family:'JetBrains Mono',monospace; text-transform:uppercase; }
+    .bathy-gradient { height:10px; border-radius:3px; background:linear-gradient(to right,#08306b,#08519c,#2171b5,#4292c6,#6baed6,#9ecae1,#c6dbef,#deebf7); margin-bottom:4px; }
+    .bathy-labels { display:flex; justify-content:space-between; font-size:8px; color:#6a7d92; font-family:'JetBrains Mono',monospace; }
+    .bathy-status { font-size:8px; color:#6a7d92; margin-top:5px; font-family:'JetBrains Mono',monospace; }
+    .bathy-status span { color:#3dffa0; }
+    .map-area { flex:1; position:relative; background:#08111e; }
+    #portMap  { width:100%; height:100%; z-index:1; }
+    .map-controls { position:absolute; right:16px; top:16px; display:flex; flex-direction:column; gap:6px; z-index:1000; }
+    .map-btn { width:34px; height:34px; background:rgba(9,14,22,.94); border:1px solid #1a2535; border-radius:5px; color:#dce8f5; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px; transition:border-color .2s,color .2s; }
+    .map-btn:hover  { border-color:#4da6ff; color:#4da6ff; }
+    .map-btn.active { border-color:#4da6ff; color:#4da6ff; background:rgba(77,166,255,.1); }
+    .coord-bar { position:absolute; bottom:0; left:0; right:0; height:26px; background:#04070e; border-top:1px solid #1a2535; display:flex; align-items:center; padding:0 16px; font-size:9px; font-family:'JetBrains Mono'; color:#6a7d92; z-index:1000; }
+    .coord-bar span { color:#dce8f5; margin:0 10px 0 4px; }
+    .leaflet-container { background:#08111e !important; }
+    .leaflet-attribution-flag { display:none !important; }
+    .leaflet-control-attribution { font-size:8px !important; background:rgba(4,7,14,.8) !important; color:#6a7d92 !important; }
+    .leaflet-control-attribution a { color:#6a7d92 !important; }
+
+    /* ── MAP LIGHT MODE ── */
+    #mapOverlay.map-light { background:#f0f4f8; }
+    #mapOverlay.map-light .map-nav { background:#e4eaf2; border-bottom-color:#c8d4e0; }
+    #mapOverlay.map-light .map-nav-brand { color:#1a2535; }
+    #mapOverlay.map-light .map-tab { color:#8a9ab0; }
+    #mapOverlay.map-light .map-tab:hover { color:#1a2535; background:rgba(0,0,0,.05); }
+    #mapOverlay.map-light .map-tab.active { color:#1a2535; }
+    #mapOverlay.map-light .map-tab.active::after { background:#2a6eff; }
+    #mapOverlay.map-light .map-nav-close { color:#8a9ab0; }
+    #mapOverlay.map-light .map-nav-close:hover { color:#1a2535; background:rgba(0,0,0,.05); }
+    #mapOverlay.map-light .map-sidebar { background:#f8fafc; border-right-color:#c8d4e0; }
+    #mapOverlay.map-light .sb-header { background:#edf1f7; border-bottom-color:#c8d4e0; }
+    #mapOverlay.map-light .sb-title { color:#1a2535; }
+    #mapOverlay.map-light .sb-sub { color:#5a7090; }
+    #mapOverlay.map-light .live-dot { color:#00a060; }
+    #mapOverlay.map-light .live-dot::before { background:#00a060; }
+    #mapOverlay.map-light .sb-section { border-top-color:#c8d4e0; }
+    #mapOverlay.map-light .sb-section-label { color:#5a7090; }
+    #mapOverlay.map-light .stat-box { background:#edf1f7; border-color:#c8d4e0; }
+    #mapOverlay.map-light .stat-val { color:#1a2535; }
+    #mapOverlay.map-light .stat-lbl { color:#5a7090; }
+    #mapOverlay.map-light .bathy-legend { background:#edf1f7; border-color:#c8d4e0; }
+    #mapOverlay.map-light .bathy-legend-title { color:#5a7090; }
+    #mapOverlay.map-light .bathy-labels { color:#5a7090; }
+    #mapOverlay.map-light .bathy-status { color:#5a7090; }
+    #mapOverlay.map-light .map-area { background:#d4e0ec; }
+    #mapOverlay.map-light .map-btn { background:#edf1f7; border-color:#c8d4e0; color:#1a2535; }
+    #mapOverlay.map-light .map-btn:hover { border-color:#2a6eff; color:#2a6eff; }
+    #mapOverlay.map-light .map-btn.active { border-color:#2a6eff; color:#2a6eff; background:rgba(42,110,255,.1); }
+    #mapOverlay.map-light #mapLightBtn { border-color:#2a6eff; color:#2a6eff; background:rgba(42,110,255,.1); }
+    #mapOverlay.map-light .coord-bar { background:#e4eaf2; border-top-color:#c8d4e0; color:#5a7090; }
+    #mapOverlay.map-light .coord-bar span { color:#1a2535; }
+    #mapOverlay.map-light .leaflet-control-attribution { background:rgba(232,238,246,.9) !important; color:#5a7090 !important; }
+    #mapOverlay.map-light .leaflet-control-attribution a { color:#5a7090 !important; }
+
+    /* OpenSeaMap: multiply blend makes white transparent on light basemap */
+    #mapOverlay.map-light .leaflet-tile-pane .seamark-layer {
+      mix-blend-mode: multiply;
+    }
+
+    /* map light toggle button */
+    .map-light-btn { display:none; }
+    .map-light-btn:hover { color:#dce8f5; border-color:#4da6ff; }
+    #mapOverlay.map-light .map-light-btn { background:#c8d4e0; border-color:#c8d4e0; color:#1a2535; }
+    #mapOverlay.map-light .map-light-btn:hover { border-color:#2a6eff; }
+    </style>
+</head>
+<body>
+
+<button class="toggle-btn" onclick="toggleTheme()">
+  <span id="toggleIcon">☀️</span>
+  <span id="toggleLabel">Light mode</span>
+</button>
+
+<div class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-left">
+      <span class="back-btn" onclick="window.location.href='Test_HWUD01.html'">← Home</span>
+      <small>Estuary 01 · Germany</small>
+      <h1>Elbe<br>Estuary</h1>
+      <p>Context for maritime professionals</p>
+      <div class="map-cta">
+        <p class="map-cta-text">Voor actuele navigatie-informatie, getijden en live scheepvaartdata, open de interactieve kaartviewer voor de Elbe.</p>
+        <span class="map-cta-btn" onclick="openMap('elbe')">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+          </svg>
+          Open Elbe Map Viewer
+        </span>
+      </div>
+    </div>
+    <img class="hero-img" src="HWUD01_elbe.jpg" onerror="this.removeAttribute('src')" alt="Elbe satellite">
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="pills" id="pills">
+    <button class="on" onclick="go(event,'climate')">Climate change</button>
+    <button onclick="go(event,'geo')">Physical geography</button>
+    <button onclick="go(event,'demo')">Demographics</button>
+    <button onclick="go(event,'econ')">Economics</button>
+  </div>
+</div>
+
+<div class="pills-sticky" id="sticky">
+  <div class="wrap">
+    <button class="on" onclick="go(event,'climate')">Climate change</button>
+    <button onclick="go(event,'geo')">Physical geography</button>
+    <button onclick="go(event,'demo')">Demographics</button>
+    <button onclick="go(event,'econ')">Economics</button>
+  </div>
+</div>
+
+<div class="content">
+  <div class="wrap">
+
+    <div class="intro">
+      <h2>What is the Elbe estuary?</h2>
+      <p>The Elbe estuary stretches over 140 kilometres from the tidal weirs at Hamburg to its mouth at Cuxhaven on the North Sea. This page examines four key external factors — climate change, physical geography, demographics and economics — and explains how each shapes the working conditions of the captains and pilots who navigate this demanding waterway every day.</p>
+    </div>
+
+    <section id="climate">
+      <h2>Climate change</h2>
+      <p>The Elbe estuary lies in a zone highly sensitive to the combined effects of sea-level rise and increasing storm surge frequency. Climate models project a rise in mean sea level of 20 to 80 centimetres along the German–Dutch Wadden Sea coast by the end of this century, with large upward uncertainty under high-emission scenarios.</p>
+      <div class="chart">
+        <h3>Projected sea level rise — Elbe estuary (cm above 2000 baseline)</h3>
+        <svg viewBox="0 0 640 200">
+          <line x1="60" y1="20"  x2="620" y2="20"  class="sg" stroke-width="1"/><line x1="60" y1="60"  x2="620" y2="60"  class="sg" stroke-width="1"/><line x1="60" y1="100" x2="620" y2="100" class="sg" stroke-width="1"/><line x1="60" y1="140" x2="620" y2="140" class="sg" stroke-width="1"/><line x1="60" y1="170" x2="620" y2="170" class="sg2" stroke-width="1"/>
+          <text x="52" y="174" class="st" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">0</text><text x="52" y="143" class="st" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">20</text><text x="52" y="103" class="st" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">40</text><text x="52" y="63" class="st" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">60</text><text x="52" y="23" class="st" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">80</text>
+          <text x="60"  y="186" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">2000</text><text x="200" y="186" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">2025</text><text x="340" y="186" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">2050</text><text x="480" y="186" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">2075</text><text x="620" y="186" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">2100</text>
+          <polygon points="60,170 200,162 340,147 480,120 620,20 620,35 480,68 340,105 200,138 60,170" fill="rgba(255,107,53,0.12)"/>
+          <polygon points="60,170 200,165 340,157 480,148 620,110 620,120 480,157 340,163 200,168 60,170" fill="rgba(77,166,255,0.10)"/>
+          <polyline points="60,170 200,162 340,147 480,120 620,20" fill="none" stroke="rgba(255,107,53,0.8)" stroke-width="2"/>
+          <polyline points="60,170 200,165 340,157 480,148 620,110" fill="none" stroke="rgba(77,166,255,0.7)" stroke-width="2" stroke-dasharray="6 3"/>
+          <line x1="200" y1="20" x2="200" y2="170" class="st-today" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="203" y="34" class="st" font-size="9" font-family="Poppins,sans-serif">today</text>
+          <line x1="65" y1="15" x2="90" y2="15" stroke="rgba(255,107,53,0.8)" stroke-width="2"/><text x="94" y="19" class="st2" font-size="9" font-family="Poppins,sans-serif">High emission</text>
+          <line x1="185" y1="15" x2="210" y2="15" stroke="rgba(77,166,255,0.7)" stroke-width="2" stroke-dasharray="5 3"/><text x="214" y="19" class="st2" font-size="9" font-family="Poppins,sans-serif">Low emission</text>
+        </svg>
+        <small>Source: IPCC AR6 regional projections, North Sea coastal zone.</small>
+      </div>
+      <p>Storm surges have posed the greatest threat to the low-lying areas along the Elbe for centuries. The 1962 storm flood devastated parts of Hamburg and cost more than 300 lives. Since then, dykes have been substantially strengthened, but climate change is increasing both the frequency and intensity of extreme surge events.</p>
+      <div class="note warn">
+        <b>Operational impact</b>
+        Increasing storm surge intensity leads to more frequent activation of surge barriers and temporary port closures. For captains navigating large container vessels up the Elbe towards Hamburg — a passage of over four hours — weather windows are becoming <strong>narrower and less predictable</strong>.
+      </div>
+      <p>Higher air temperatures produce extended periods of low flow on the Elbe during summer, making sandbanks less stable and reducing the predictive value of existing charts and depth surveys.</p>
+      <p>Ice formation on the Elbe, once a regular winter occurrence, is becoming less frequent but harder to predict. When it does occur, both captains and emergency services are less experienced with the specific hazards of ice navigation.</p>
+    </section>
+
+    <section id="geo">
+      <h2>Physical geography</h2>
+      <p>The Elbe rises in the Krkonoše mountains on the Czech–Polish border and covers more than 1,000 kilometres before reaching the North Sea at Cuxhaven. The estuary is mesotidal, with mean tidal ranges of 3 to 4 metres.</p>
+      <div class="chart">
+        <h3>Typical tidal cycle — Elbe at Cuxhaven (water level in metres)</h3>
+        <svg viewBox="0 0 640 180">
+          <defs><linearGradient id="tg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(77,166,255,0.3)"/><stop offset="100%" stop-color="rgba(77,166,255,0)"/></linearGradient></defs>
+          <line x1="60" y1="65"  x2="620" y2="65"  class="sg2" stroke-width="1"/><line x1="60" y1="20"  x2="620" y2="20"  class="sg" stroke-width="1"/><line x1="60" y1="110" x2="620" y2="110" class="sg" stroke-width="1"/>
+          <text x="52" y="69"  class="st" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">0 m</text><text x="52" y="24" class="st" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">+2 m</text><text x="52" y="114" class="st" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">−2 m</text>
+          <path d="M60,65 C100,65 110,25 160,25 C210,25 220,65 260,65 C300,65 310,110 360,110 C410,110 420,65 460,65 C500,65 510,25 560,25 C590,25 610,45 620,55 L620,65 L60,65Z" fill="url(#tg)"/>
+          <path d="M60,65 C100,65 110,25 160,25 C210,25 220,65 260,65 C300,65 310,110 360,110 C410,110 420,65 460,65 C500,65 510,25 560,25 C590,25 610,45 620,55" fill="none" stroke="rgba(77,166,255,0.85)" stroke-width="2.5"/>
+          <text x="160" y="17" fill="rgba(77,166,255,0.8)" font-size="9" text-anchor="middle" font-family="Poppins,sans-serif">HW +2.1 m</text>
+          <text x="360" y="125" fill="rgba(255,150,80,0.8)" font-size="9" text-anchor="middle" font-family="Poppins,sans-serif">LW −1.9 m</text>
+          <text x="560" y="17" fill="rgba(77,166,255,0.8)" font-size="9" text-anchor="middle" font-family="Poppins,sans-serif">HW +2.1 m</text>
+          <text x="60"  y="172" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">00:00</text><text x="200" y="172" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">05:00</text><text x="340" y="172" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">10:00</text><text x="480" y="172" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">15:00</text><text x="620" y="172" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">20:00</text>
+          <line x1="586" y1="25" x2="586" y2="65" class="bracket" stroke-width="1"/><line x1="581" y1="25" x2="591" y2="25" class="bracket" stroke-width="1"/><line x1="581" y1="65" x2="591" y2="65" class="bracket" stroke-width="1"/>
+          <text x="596" y="48" class="st" font-size="9" font-family="Poppins,sans-serif">~4 m</text>
+        </svg>
+        <small>Indicative tidal curve at Cuxhaven. Range varies with spring/neap cycle and storm conditions.</small>
+      </div>
+      <p>The navigable channel is dangerously narrow. The fairway — continuously dredged to 13.5 metres — runs through drying sandbanks and shoals. Any deviation carries a high risk of grounding.</p>
+      <div class="note"><b>Sedimentation challenge</b>The Elbe faces a structural sediment surplus. This <strong>dredging cycle problem</strong> has led to international legal proceedings, as spoil disposal affects Natura 2000 areas downstream.</div>
+      <p>The estuary cuts through the Wadden Sea, a UNESCO World Heritage Site. Sharp bends, restricted manoeuvring space and strict speed limits make it one of the most demanding river transects in Europe.</p>
+    </section>
+
+    <section id="demo">
+      <h2>Demographics</h2>
+      <p>Hamburg, with nearly 1.9 million inhabitants, is Germany's second-largest city. Demographic growth has increased demand for port services while densifying the port's surroundings.</p>
+      <div class="chart">
+        <h3>Population along the Elbe estuary — key municipalities (×1,000)</h3>
+        <svg viewBox="0 0 640 200">
+          <line x1="140" y1="170" x2="620" y2="170" class="sg2" stroke-width="1"/>
+          <text x="140" y="184" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">0</text><text x="260" y="184" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">500</text><text x="380" y="184" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">1,000</text><text x="500" y="184" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">1,500</text><text x="620" y="184" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">2,000</text>
+          <rect x="140" y="28"  width="456" height="24" rx="4" fill="rgba(77,166,255,0.75)"/><text x="133" y="44" class="st2" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">Hamburg</text><text x="602" y="44" class="st2" font-size="10" font-family="Poppins,sans-serif">1,900k</text>
+          <rect x="140" y="68"  width="30"  height="24" rx="4" fill="rgba(77,166,255,0.45)"/><text x="133" y="84" class="st2" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">Stade</text><text x="176" y="84" class="st" font-size="10" font-family="Poppins,sans-serif">126k</text>
+          <rect x="140" y="108" width="10"  height="24" rx="4" fill="rgba(77,166,255,0.35)"/><text x="133" y="124" class="st2" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">Brunsbüttel</text><text x="156" y="124" class="st" font-size="10" font-family="Poppins,sans-serif">13k</text>
+          <rect x="140" y="148" width="12"  height="24" rx="4" fill="rgba(77,166,255,0.35)"/><text x="133" y="164" class="st2" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">Cuxhaven</text><text x="158" y="164" class="st" font-size="10" font-family="Poppins,sans-serif">47k</text>
+        </svg>
+        <small>Population figures illustrate the steep demographic gradient between Hamburg and downstream communities.</small>
+      </div>
+      <p>Downstream municipalities — Stade, Brunsbüttel, Cuxhaven — are smaller, older and more dependent on industry. The availability of pilots and towage services has declined alongside depopulation.</p>
+      <div class="chart">
+        <h3>Elbe maritime pilot workforce — estimated age distribution</h3>
+        <svg viewBox="0 0 640 170">
+          <line x1="60" y1="150" x2="620" y2="150" class="sg2" stroke-width="1"/>
+          <text x="390" y="20" fill="rgba(255,107,53,0.7)" font-size="10" font-family="Poppins,sans-serif">55% of workforce aged 55+</text>
+          <rect x="85"  y="144" width="70" height="6"  rx="3" fill="rgba(77,166,255,0.5)"/>
+          <rect x="195" y="120" width="70" height="30" rx="3" fill="rgba(77,166,255,0.55)"/>
+          <rect x="305" y="84"  width="70" height="66" rx="3" fill="rgba(77,166,255,0.65)"/>
+          <rect x="415" y="54"  width="70" height="96" rx="3" fill="rgba(255,107,53,0.7)"/>
+          <rect x="525" y="96"  width="70" height="54" rx="3" fill="rgba(255,107,53,0.45)"/>
+          <text x="120" y="164" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">&lt;35</text><text x="230" y="164" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">35–44</text><text x="340" y="164" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">45–54</text><text x="450" y="164" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">55–64</text><text x="560" y="164" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">65+</text>
+          <text x="120" y="138" class="st2" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">5%</text><text x="230" y="114" class="st2" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">12%</text><text x="340" y="78" class="st2" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">28%</text>
+          <text x="450" y="48" fill="rgba(255,140,90,0.9)" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">38%</text><text x="560" y="90" fill="rgba(255,140,90,0.8)" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">17%</text>
+        </svg>
+        <small>Estimated distribution based on sector trends. Highlights the structural ageing risk.</small>
+      </div>
+      <div class="note warn"><b>Labour market pressure</b>The maritime sector faces a structural shortage of certified pilots. Ageing of the current workforce risks a <strong>capacity shortfall with direct consequences for vessel handling in Hamburg</strong>.</div>
+      <p>The chemical park in Brunsbüttel brings specific risk factors. Captains carrying dangerous goods must know local risk maps and evacuation plans.</p>
+    </section>
+
+    <section id="econ">
+      <h2>Economics</h2>
+      <p>The port of Hamburg is Europe's third-largest port, handling more than 8 million TEU annually.</p>
+      <div class="chart">
+        <h3>Port of Hamburg — container throughput (million TEU)</h3>
+        <svg viewBox="0 0 640 190">
+          <defs><linearGradient id="gg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="rgba(61,255,160,0.25)"/><stop offset="100%" stop-color="rgba(61,255,160,0)"/></linearGradient></defs>
+          <line x1="60" y1="20"  x2="620" y2="20"  class="sg" stroke-width="1"/><line x1="60" y1="55"  x2="620" y2="55"  class="sg" stroke-width="1"/><line x1="60" y1="90"  x2="620" y2="90"  class="sg" stroke-width="1"/><line x1="60" y1="125" x2="620" y2="125" class="sg" stroke-width="1"/><line x1="60" y1="155" x2="620" y2="155" class="sg2" stroke-width="1"/>
+          <text x="52" y="159" class="st" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">0</text><text x="52" y="129" class="st" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">2.5</text><text x="52" y="94" class="st" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">5</text><text x="52" y="59" class="st" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">7.5</text><text x="52" y="24" class="st" font-size="10" text-anchor="end" font-family="Poppins,sans-serif">10</text>
+          <path d="M60,46 L122,21 L184,61 L246,33 L308,28 L370,36 L432,36 L494,28 L525,41 L556,37 L588,33 L620,44 L620,155 L60,155Z" fill="url(#gg)"/>
+          <polyline points="60,46 122,21 184,61 246,33 308,28 370,36 432,36 494,28 525,41 556,37 588,33 620,44" fill="none" stroke="rgba(61,255,160,0.8)" stroke-width="2.5" stroke-linejoin="round"/>
+          <circle cx="184" cy="61" r="4" fill="rgba(255,107,53,0.9)"/>
+          <text x="60"  y="172" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">2005</text><text x="184" y="172" fill="rgba(255,107,53,0.7)" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">2009</text><text x="370" y="172" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">2015</text><text x="494" y="172" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">2019</text><text x="620" y="172" class="st" font-size="10" text-anchor="middle" font-family="Poppins,sans-serif">2023</text>
+          <line x1="184" y1="62" x2="184" y2="155" stroke="rgba(255,107,53,0.2)" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="140" y="84" fill="rgba(255,107,53,0.6)" font-size="9" font-family="Poppins,sans-serif">2008–09 crisis</text>
+        </svg>
+        <small>Source: Port of Hamburg Marketing. Dip in 2009 reflects global financial crisis.</small>
+      </div>
+      <p>Economic cycles directly affect port operations. Recent disruptions — Brexit, COVID-19 and supply chain shocks — have complicated scheduling and increased uncertainty for captains.</p>
+      <div class="note"><b>Elbe deepening</b>The fairway was deepened to 13.5 metres in 2021. Captains benefit from greater under-keel clearance, but <strong>the extra depth has worsened sedimentation, requiring more frequent dredging and temporary changes to channel marking</strong>.</div>
+      <p>Brunsbüttel hosts LNG terminals with green hydrogen import planned — requiring new safety protocols and cryogenic cargo training for captains.</p>
+      <p>Competition with Rotterdam, Antwerp and Bremen means vessel scale on the Elbe keeps growing — larger ships leave less margin for error in this narrow waterway.</p>
+    </section>
+
+  </div>
+</div>
+
+<script>
+  const hero=document.querySelector('.hero'), sticky=document.getElementById('sticky');
+  const ids=['climate','geo','demo','econ']; let lastY=0;
+  window.addEventListener('scroll',()=>{ const up=window.scrollY<lastY; sticky.classList.toggle('show',hero.getBoundingClientRect().bottom<0&&up); lastY=window.scrollY; let cur=ids[0]; ids.forEach(id=>{if(document.getElementById(id).getBoundingClientRect().top<=120)cur=id;}); activate(cur); },{passive:true});
+  function go(e,id){e.preventDefault();document.getElementById(id).scrollIntoView({behavior:'smooth',block:'start'});activate(id);}
+  function activate(id){[document.getElementById('pills'),sticky].forEach(nav=>{nav.querySelectorAll('button').forEach((b,i)=>b.classList.toggle('on',i===ids.indexOf(id)));});}
+
+  function toggleTheme(){
+    const html=document.documentElement,isDark=html.getAttribute('data-theme')==='dark',next=isDark?'light':'dark';
+    html.setAttribute('data-theme',next);
+    document.getElementById('toggleIcon').textContent=isDark?'🌙':'☀️';
+    document.getElementById('toggleLabel').textContent=isDark?'Dark mode':'Light mode';
+    updateSVG(next); localStorage.setItem('theme',next);
+    // sync map with page theme
+    if (typeof mapLight !== 'undefined' && mapReady) {
+      const shouldBeLight = next === 'light';
+      if (mapLight !== shouldBeLight) toggleMapLight();
+    }
+  }
+  function updateSVG(t){
+    const d=t==='dark';
+    const col={st:d?'rgba(255,255,255,0.3)':'rgba(0,0,0,0.4)',st2:d?'rgba(255,255,255,0.4)':'rgba(0,0,0,0.55)',sg:d?'rgba(255,255,255,0.05)':'rgba(0,0,0,0.06)',sg2:d?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.1)',std:d?'rgba(255,255,255,0.12)':'rgba(0,0,0,0.1)',br:d?'rgba(255,255,255,0.2)':'rgba(0,0,0,0.15)'};
+    document.querySelectorAll('.st').forEach(el=>el.setAttribute('fill',col.st));
+    document.querySelectorAll('.st2').forEach(el=>el.setAttribute('fill',col.st2));
+    document.querySelectorAll('.sg').forEach(el=>el.setAttribute('stroke',col.sg));
+    document.querySelectorAll('.sg2').forEach(el=>el.setAttribute('stroke',col.sg2));
+    document.querySelectorAll('.st-today').forEach(el=>el.setAttribute('stroke',col.std));
+    document.querySelectorAll('.bracket').forEach(el=>el.setAttribute('stroke',col.br));
+  }
+    /* ── MAP STATE ── */
+    let map, mapReady=false, currentEstuary='elbe', bathyOn=true, mapLight=false;
+
+    const estuaryConfig = {
+      elbe: {
+        center:[53.54,9.96], zoom:13,
+        title:'Hamburg Port', sub:'ELBE KM 623 · NORDERELBE',
+        wind:'NNW 18 kt', bft:'BEAUFORT 4',
+        windAngle: 337.5,
+        // Realistic Elbe tidal params: range ~3.8m, semi-diurnal, slight asymmetry
+        tideRange: 3.8,   // metres top to bottom
+        tideMidpoint: 1.0, // mean water level above chart datum
+        tideSpeed: 0.00008, // radians per frame (~12.4h cycle at 60fps)
+        tidePhaseStart: 1.2  // starting phase offset
+      },
+      tagus: {
+        center:[38.71,-9.13], zoom:12,
+        title:'Port of Lisbon', sub:'TAGUS · BARRA ENTRANCE',
+        wind:'SW 18 kt', bft:'BEAUFORT 4',
+        windAngle: 225,
+        // Realistic Tagus tidal params: range ~3.2m, slightly slower cycle
+        tideRange: 3.2,
+        tideMidpoint: 1.6,
+        tideSpeed: 0.000075,
+        tidePhaseStart: 0.4
+      }
+    };
+
+    function openMap(estuary) {
+      document.getElementById('mapOverlay').classList.add('open');
+      document.body.style.overflow='hidden';
+      currentEstuary = estuary || 'elbe';
+      if (!mapReady) {
+        initMap();
+        mapReady = true;
+        // sync AFTER initMap so tile layers exist
+        const pageIsLight = document.documentElement.getAttribute('data-theme') === 'light';
+        if (pageIsLight) { mapLight = false; toggleMapLight(); }
+      } else {
+        applyEstuary(currentEstuary);
+        setTimeout(()=>map.invalidateSize(), 50);
+      }
+      updateTabs();
+    }
+
+    function closeMap() {
+      document.getElementById('mapOverlay').classList.remove('open');
+      document.body.style.overflow='';
+    }
+
+    function switchEstuary(e) {
+      currentEstuary=e;
+      updateTabs();
+      applyEstuary(e);
+    }
+
+    function updateTabs() {
+      document.getElementById('tabElbe').classList.toggle('active',  currentEstuary==='elbe');
+      document.getElementById('tabTagus').classList.toggle('active', currentEstuary==='tagus');
+    }
+
+    function applyEstuary(e) {
+      const c = estuaryConfig[e];
+      map.setView(c.center, c.zoom);
+      document.getElementById('mapTitle').textContent = c.title;
+      document.getElementById('mapSub').textContent   = c.sub;
+      document.getElementById('tideCur').textContent  = c.tide;
+      document.getElementById('tideNext').textContent = c.next;
+      document.getElementById('windVal').textContent  = c.wind;
+      document.getElementById('windBft').textContent  = c.bft;
+      drawTide(c);
+      drawWind(c.windAngle);
+    }
+
+    // tide animation state
+    let tideAnimFrame = null;
+    let tidePhase = 0;
+    let currentTideConfig = null;
+
+    function drawTide(c) {
+      const tc = document.getElementById('tideChart');
+      if (!tc) return;
+      if (tideAnimFrame) { cancelAnimationFrame(tideAnimFrame); tideAnimFrame = null; }
+      currentTideConfig = c;
+      tc.width = tc.offsetWidth || 260; tc.height = 60;
+      tidePhase = c.tidePhaseStart;
+      animateTide();
+    }
+
+    function animateTide() {
+      const tc = document.getElementById('tideChart');
+      if (!tc || !currentTideConfig) return;
+      const ctx = tc.getContext('2d');
+      const w = tc.width, h = tc.height;
+      const c = currentTideConfig;
+
+      // advance phase — very slow to mimic real tidal movement
+      tidePhase += c.tideSpeed;
+
+      // current water level: sinusoidal between (midpoint - range/2) and (midpoint + range/2)
+      const curLevel = c.tideMidpoint + (c.tideRange / 2) * Math.sin(tidePhase);
+      const halfRange = c.tideRange / 2;
+
+      // y mapping: midpoint maps to h/2, full range fills ~80% of canvas height
+      const scale = (h * 0.8) / c.tideRange;
+      const midY  = h / 2;
+      const yForLevel = lvl => midY - (lvl - c.tideMidpoint) * scale;
+
+      // draw the wave: show ~2 full tidal cycles across the canvas width
+      // each pixel x represents a time offset of (2 * 2π / w) radians
+      const yForX = x => {
+        const xPhase = tidePhase + (x / w) * 4 * Math.PI;
+        const lvl = c.tideMidpoint + (c.tideRange / 2) * Math.sin(xPhase);
+        return yForLevel(lvl);
+      };
+
+      ctx.clearRect(0,0,w,h);
+
+      // gradient fill under curve
+      const g = ctx.createLinearGradient(0,0,0,h);
+      g.addColorStop(0,'rgba(77,166,255,0.35)'); g.addColorStop(1,'rgba(77,166,255,0.0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.moveTo(0, h);
+      for(let x=0;x<=w;x++) ctx.lineTo(x, yForX(x));
+      ctx.lineTo(w, h); ctx.closePath(); ctx.fill();
+
+      // wave line
+      ctx.strokeStyle='#4da6ff'; ctx.lineWidth=2;
+      ctx.beginPath();
+      for(let x=0;x<=w;x++) ctx.lineTo(x, yForX(x));
+      ctx.stroke();
+
+      // dot sits exactly ON the line at x=25%
+      const dotX = Math.round(w * 0.25);
+      const dotY = yForX(dotX);
+      ctx.beginPath(); ctx.arc(dotX, dotY, 4, 0, Math.PI*2);
+      ctx.fillStyle='#4da6ff'; ctx.fill();
+      // glow
+      ctx.beginPath(); ctx.arc(dotX, dotY, 7, 0, Math.PI*2);
+      ctx.strokeStyle='rgba(77,166,255,0.3)'; ctx.lineWidth=2; ctx.stroke();
+
+      // update live water level text
+      const el = document.getElementById('tideCur');
+      if (el) el.textContent = (curLevel >= 0 ? '+' : '') + curLevel.toFixed(2) + 'm';
+
+      // update Next HW time — find next peak from current phase
+      const elNext = document.getElementById('tideNext');
+      if (elNext) {
+        // time to next peak in real hours: (π/2 - phase % 2π) / tideSpeed / 60fps / 3600s
+        const phMod = tidePhase % (2 * Math.PI);
+        const toNextPeak = phMod < Math.PI/2
+          ? (Math.PI/2 - phMod)
+          : (Math.PI/2 + 2*Math.PI - phMod);
+        const hoursToHW = (toNextPeak / c.tideSpeed) / 3600;
+        const now = new Date();
+        const hwH = (now.getUTCHours() + 1 + Math.floor(hoursToHW)) % 24;
+        const hwM = Math.floor((hoursToHW % 1) * 60);
+        elNext.textContent = `${hwH.toString().padStart(2,'0')}:${hwM.toString().padStart(2,'0')}`;
+      }
+
+      tideAnimFrame = requestAnimationFrame(animateTide);
+    }
+
+    function drawWind(angleDeg) {
+      const wc = document.getElementById('windCanvas');
+      if (!wc) return;
+      // force correct canvas size
+      wc.width = 80; wc.height = 80;
+      const ctx = wc.getContext('2d');
+      ctx.clearRect(0,0,80,80);
+      // outer ring
+      ctx.strokeStyle='#1a2535'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(40,40,35,0,Math.PI*2); ctx.stroke();
+      // cardinal lines
+      ctx.strokeStyle='#0f1d2e'; ctx.lineWidth=1;
+      [0,1,2,3].forEach(i=>{
+        const a = i*Math.PI/2;
+        ctx.beginPath(); ctx.moveTo(40,40);
+        ctx.lineTo(40+Math.sin(a)*35, 40-Math.cos(a)*35); ctx.stroke();
+      });
+      // wind arrow — angleDeg is direction FROM North clockwise
+      const rad = (angleDeg * Math.PI) / 180;
+      ctx.save(); ctx.translate(40,40); ctx.rotate(rad);
+      ctx.strokeStyle='#4da6ff'; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.moveTo(0,26); ctx.lineTo(0,-26); ctx.stroke();
+      ctx.fillStyle='#4da6ff';
+      ctx.beginPath(); ctx.moveTo(0,-26); ctx.lineTo(-5,-16); ctx.lineTo(5,-16); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      // N label
+      ctx.fillStyle='#6a7d92'; ctx.font='bold 9px JetBrains Mono,monospace';
+      ctx.textAlign='center'; ctx.fillText('N',40,8);
+    }
+
+    document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeMap(); });
+
+    /* ── MAP INIT ── */
+    // tile layers declared globally so toggleMapLight can reach updateLayers
+    let esriOcean, esriOceanRef, cartoLayer, cartoLight, esriTopo, openSeaMap;
+
+    function updateLayers() {
+      if (!map) return;
+      const z = map.getZoom();
+      const s = document.getElementById('bathyStatus');
+
+      // 1. Remove ALL base layers first — clean slate every time
+      [esriOcean, esriOceanRef, cartoLayer, cartoLight, esriTopo, openSeaMap]
+        .forEach(l => { if (l && map.hasLayer(l)) map.removeLayer(l); });
+
+      // 2. Add only the correct layers for current mode
+      if (!bathyOn) {
+        // Bathy off: just basemap, no nautical overlay
+        map.addLayer(mapLight ? cartoLight : cartoLayer);
+        s.innerHTML = 'Status: <span style="color:#6a7d92">OFF</span>';
+      } else if (z <= 10) {
+        // Overview zoom
+        if (mapLight) {
+          map.addLayer(esriTopo);
+          map.addLayer(openSeaMap);
+          s.innerHTML = 'Mode: <span style="color:#2a6eff">ESRI TOPO</span>';
+        } else {
+          map.addLayer(esriOcean);
+          map.addLayer(esriOceanRef);
+          s.innerHTML = 'Mode: <span>ESRI OCEAN</span>';
+        }
+      } else {
+        // Detail zoom
+        if (mapLight) {
+          map.addLayer(cartoLight);
+          map.addLayer(openSeaMap);
+          s.innerHTML = 'Mode: <span style="color:#2a6eff">CARTO LIGHT</span>';
+        } else {
+          map.addLayer(cartoLayer);
+          map.addLayer(openSeaMap);
+          s.innerHTML = 'Mode: <span style="color:#3dffa0">OPENSEAMAP</span>';
+        }
+      }
+    }
+
+    window.toggleMapLight = function() {
+      mapLight = !mapLight;
+      document.getElementById('mapOverlay').classList.toggle('map-light', mapLight);
+      const btn = document.getElementById('mapLightBtn');
+      btn.textContent = mapLight ? '🌙' : '☀️';
+      btn.classList.toggle('active', mapLight);
+      updateLayers();
+    };
+
+    window.toggleBathy = function() {
+      bathyOn = !bathyOn;
+      document.getElementById('bathyBtn').classList.toggle('active', bathyOn);
+      updateLayers();
+    };
+
+    window.resetMap = function() {
+      map.setView(estuaryConfig[currentEstuary].center, estuaryConfig[currentEstuary].zoom);
+    };
+
+    function initMap() {
+      map = L.map('portMap',{zoomControl:false}).setView(estuaryConfig[currentEstuary].center, estuaryConfig[currentEstuary].zoom);
+      esriOcean    = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',      {attribution:'© Esri, GEBCO',maxZoom:13});
+      esriOceanRef = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}', {attribution:'',maxZoom:13,opacity:.85});
+      cartoLayer   = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',                                              {attribution:'© OpenStreetMap · © CARTO',subdomains:'abcd',maxZoom:19});
+      openSeaMap   = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',                                                        {attribution:'© OpenSeaMap',maxZoom:18});
+      cartoLight   = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',                                               {attribution:'© OpenStreetMap · © CARTO',subdomains:'abcd',maxZoom:19});
+      esriTopo     = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',                {attribution:'© Esri',maxZoom:19});
+
+      map.on('zoomend', updateLayers);
+      map.on('move',()=>{ const c=map.getCenter(); document.getElementById('lat').textContent=c.lat.toFixed(4); document.getElementById('lon').textContent=c.lng.toFixed(4); document.getElementById('zoom').textContent=map.getZoom(); });
+      updateLayers();
+
+      /* ship marker Elbe */
+      L.marker([53.545,9.95],{icon:L.divIcon({className:'',html:`<div style="background:#4da6ff;width:10px;height:10px;border-radius:50%;border:2px solid white;box-shadow:0 0 6px rgba(77,166,255,.8)"></div>`,iconSize:[10,10],iconAnchor:[5,5]})}).addTo(map).bindPopup('<b>MV ELBE STAR</b><br>Snelheid: 12kn');
+      /* ship marker Tagus */
+      L.marker([38.705,-9.14],{icon:L.divIcon({className:'',html:`<div style="background:#4da6ff;width:10px;height:10px;border-radius:50%;border:2px solid white;box-shadow:0 0 6px rgba(77,166,255,.8)"></div>`,iconSize:[10,10],iconAnchor:[5,5]})}).addTo(map).bindPopup('<b>MV TAGUS STAR</b><br>Snelheid: 8kn');
+
+      applyEstuary(currentEstuary);
+    }
+
+    /* ── CLOCK ── */
+    function tick() { const n=new Date(); const h=(n.getUTCHours()+1)%24; document.getElementById('clock').textContent=`LIVE · ${h.toString().padStart(2,'0')}:${n.getUTCMinutes().toString().padStart(2,'0')}:${n.getUTCSeconds().toString().padStart(2,'0')} UTC+1`; }
+    setInterval(tick,1000); tick();
+
+  const saved=localStorage.getItem('theme')||'dark';
+  document.documentElement.setAttribute('data-theme',saved);
+  document.getElementById('toggleIcon').textContent=saved==='dark'?'☀️':'🌙';
+  document.getElementById('toggleLabel').textContent=saved==='dark'?'Light mode':'Dark mode';
+  updateSVG(saved);
+</script>
+  <!-- MAP VIEWER OVERLAY -->
+  <div id="mapOverlay">
+    <div class="map-nav">
+      <div class="map-nav-brand">MAP VIEWER</div>
+      <!-- estuary switch tabs -->
+      <button class="map-tab active" id="tabElbe"  onclick="switchEstuary('elbe')">Elbe</button>
+      <button class="map-tab"        id="tabTagus" onclick="switchEstuary('tagus')">Tagus</button>
+      <button class="map-nav-close"  onclick="closeMap()">✕ Close</button>
+    </div>
+    <div class="map-body">
+      <aside class="map-sidebar">
+        <div class="sb-header">
+          <div class="sb-title" id="mapTitle">Hamburg Port</div>
+          <div class="sb-sub"   id="mapSub">ELBE KM 623 · NORDERELBE</div>
+          <div class="live-dot" id="clock">LIVE · --:--:-- UTC</div>
+        </div>
+        <div class="sb-section">
+          <div class="sb-section-label">Water level</div>
+          <div style="padding:0 16px 10px"><canvas id="tideChart" height="60" style="width:100%"></canvas></div>
+          <div class="stat-grid">
+            <div class="stat-box"><div class="stat-val" id="tideCur" style="color:#4da6ff">+1.82m</div><div class="stat-lbl">Current</div></div>
+            <div class="stat-box"><div class="stat-val" id="tideNext" style="color:#ff6b35">15:24</div><div class="stat-lbl">Next HW</div></div>
+          </div>
+        </div>
+        <div class="sb-section">
+          <div class="sb-section-label">Wind</div>
+          <div style="display:flex;padding:0 16px;gap:10px;align-items:center">
+            <canvas id="windCanvas" width="80" height="80"></canvas>
+            <div><div class="stat-val" id="windVal">NNW 18kt</div><div class="stat-lbl" id="windBft">BEAUFORT 4</div></div>
+          </div>
+        </div>
+        <div class="sb-section">
+          <div class="sb-section-label">Bathymetry</div>
+          <div class="bathy-legend">
+            <div class="bathy-legend-title">GEBCO Depth (m)</div>
+            <div class="bathy-gradient"></div>
+            <div class="bathy-labels"><span>Deep</span><span>Shallow</span></div>
+            <div class="bathy-status" id="bathyStatus">Status: <span>ACTIVE</span></div>
+          </div>
+          <div style="padding:8px 16px 0;font-size:8px;color:#6a7d92;font-family:'JetBrains Mono'">Source: ESRI/GEBCO · OpenSeaMap</div>
+        </div>
+      </aside>
+      <div class="map-area">
+        <div id="portMap"></div>
+        <div class="map-controls">
+          <div class="map-btn" onclick="map&&map.zoomIn()">+</div>
+          <div class="map-btn" onclick="map&&map.zoomOut()">−</div>
+          <div class="map-btn" onclick="resetMap()">⊙</div>
+          <div class="map-btn active" id="bathyBtn" onclick="toggleBathy()">≈</div>
+          <div class="map-btn" id="mapLightBtn" onclick="toggleMapLight()" title="Light/Dark basemap" style="font-size:14px">☀️</div>
+        </div>
+        <div class="coord-bar">LAT <span id="lat">53.54</span> LON <span id="lon">9.96</span> ZOOM <span id="zoom">13</span></div>
+      </div>
+    </div>
+  </div>
+
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</body>
+</html>

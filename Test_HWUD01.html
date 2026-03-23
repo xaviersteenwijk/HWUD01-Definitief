@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>European Port Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    /* ── THEME ── */
+    :root, [data-theme="dark"] {
+      --page-bg: #0b0f2c;
+      --section-bg: #000;
+      --text: #fff;
+      --muted: rgba(255,255,255,0.75);
+      --toggle-bg: rgba(255,255,255,0.1);
+      --toggle-border: rgba(255,255,255,0.35);
+    }
+    [data-theme="light"] {
+      --page-bg: #e8ecf5;
+      --section-bg: #f0f2f8;
+      --text: #0d1020;
+      --muted: rgba(13,16,32,0.7);
+      --toggle-bg: rgba(0,0,0,0.07);
+      --toggle-border: rgba(0,0,0,0.2);
+    }
+
+    body { font-family: 'Poppins', sans-serif; color: var(--text); background-color: var(--page-bg); transition: background .3s, color .3s; }
+
+    /* ── NAVBAR ── */
+    .navbar { position: absolute; top: 0; width: 100%; padding: 20px 60px; display: flex; justify-content: space-between; align-items: center; z-index: 10; }
+    .logo { font-weight: 600; font-size: 18px; color: #fff; }
+    nav ul { list-style: none; display: flex; gap: 40px; }
+    nav a, .login a { text-decoration: none; color: #fff; font-weight: 400; font-size: 15px; transition: opacity .3s; }
+    nav a:hover, .login a:hover { opacity: .7; }
+
+    /* ── HERO ── */
+    .hero { height: 100vh; background: url("Foto_voorpagina_HWUD01.png") center/cover no-repeat; position: relative; display: flex; align-items: center; padding: 0 80px; }
+    .overlay { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(6,10,40,.85) 0%, rgba(6,10,40,.6) 40%, rgba(6,10,40,.3) 70%, rgba(6,10,40,.1) 100%); }
+    .hero-content { position: relative; max-width: 650px; z-index: 2; }
+    .hero-content h1 { font-size: 48px; font-weight: 600; line-height: 1.2; margin-bottom: 20px; color: #fff; }
+    .hero-content p  { font-size: 16px; font-weight: 300; margin-bottom: 30px; max-width: 500px; color: #fff; }
+    .btn-outline { display: inline-block; padding: 12px 28px; border: 2px solid #fff; border-radius: 40px; color: #fff; text-decoration: none; font-weight: 500; transition: all .3s; cursor: pointer; }
+    .btn-outline:hover { background: #fff; color: #0b0f2c; }
+
+    /* ── LIVE CARD ── */
+    .live-card { position: absolute; right: 80px; top: 50%; transform: translateY(-50%); width: 320px; padding: 30px; border-radius: 25px; border: 2px solid rgba(255,255,255,.6); backdrop-filter: blur(10px); background: rgba(255,255,255,.05); z-index: 2; color: #fff; }
+    .live-card h3 { font-size: 20px; margin-bottom: 20px; font-weight: 500; }
+    .estuary { margin-bottom: 20px; }
+    .estuary strong { display: block; margin-bottom: 5px; font-weight: 500; }
+    .estuary p { font-size: 14px; font-weight: 300; }
+    .advisory { color: #ffb3b3; }
+
+    /* ── FOLDER SECTION ── */
+    .estuary-selection { background: var(--section-bg); position: relative; overflow: hidden; transition: background .3s; }
+    .selection-intro { padding: 60px 60px 0; width: 100%; max-width: 700px; }
+    .selection-intro p { font-size: 14px; font-weight: 300; color: var(--muted); line-height: 1.7; margin-bottom: 12px; }
+    .elbe-nav-inner { display: flex; flex-direction: column; align-items: center; padding: 60px 20px 80px; position: relative; }
+    .elbe-nav-inner::before { content:''; position:absolute; inset:0; background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E"); pointer-events:none; z-index:0; opacity:.4; }
+    .elbe-section-header { text-align:right; align-self:flex-end; padding-right:40px; margin-bottom:40px; position:relative; z-index:1; }
+    .elbe-section-header h2 { font-size:clamp(26px,3.5vw,44px); font-weight:700; line-height:1; letter-spacing:-.02em; color:var(--text); }
+    .elbe-section-header p  { font-size:12px; font-weight:300; color:var(--muted); margin-top:5px; letter-spacing:.08em; text-transform:uppercase; }
+    .stack-scene { perspective:1200px; perspective-origin:50% 40%; width:100%; max-width:900px; display:flex; justify-content:center; padding:60px 20px 40px; position:relative; z-index:1; }
+    .stack { display:flex; align-items:flex-end; position:relative; transform-style:preserve-3d; transform:rotateX(6deg) rotateY(4deg); transition:transform .6s cubic-bezier(.23,1,.32,1); }
+    .elbe-folder { position:relative; width:260px; flex-shrink:0; margin-left:-60px; transform-style:preserve-3d; cursor:pointer; transition:transform .55s cubic-bezier(.23,1,.32,1),filter .4s; filter:brightness(.75) saturate(.8); }
+    .elbe-folder:first-child { margin-left:0; }
+    .elbe-folder:hover,.elbe-folder.active { transform:translateY(-80px) translateZ(80px) rotateY(0deg) scale(1.05)!important; z-index:100!important; filter:brightness(1) saturate(1.1); }
+    .elbe-folder-tab { position:absolute; top:-36px; left:16px; width:110px; height:38px; border-radius:10px 10px 0 0; z-index:2; transition:width .4s; display:flex; align-items:center; padding:0 12px; overflow:hidden; }
+    .elbe-folder-tab span { font-size:14px; font-weight:600; color:rgba(255,255,255,0.9); letter-spacing:0.04em; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; }
+    .elbe-folder:hover .elbe-folder-tab,.elbe-folder.active .elbe-folder-tab { width:140px; }
+    .elbe-folder-body { width:100%; height:340px; border-radius:18px; overflow:hidden; position:relative; box-shadow:0 4px 12px rgba(0,0,0,.6),0 20px 50px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.08),0 0 0 1px rgba(255,255,255,0.55); }
+    .elbe-folder-body img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .6s cubic-bezier(.23,1,.32,1); }
+    .elbe-folder:hover .elbe-folder-body img,.elbe-folder.active .elbe-folder-body img { transform:scale(1.06); }
+    .elbe-folder-overlay { position:absolute; inset:0; background:linear-gradient(to top,rgba(0,0,0,.92) 0%,rgba(0,0,0,.5) 45%,rgba(0,0,0,0) 70%); display:flex; flex-direction:column; justify-content:flex-end; padding:22px 18px 20px; opacity:0; transform:translateY(8px); transition:opacity .35s,transform .35s; }
+    .elbe-folder:hover .elbe-folder-overlay,.elbe-folder.active .elbe-folder-overlay { opacity:1; transform:translateY(0); }
+    .elbe-overlay-label { font-size:9px; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:rgba(255,255,255,.5); margin-bottom:5px; }
+    .elbe-overlay-title { font-size:17px; font-weight:700; line-height:1.2; margin-bottom:8px; color:#fff; }
+    .elbe-overlay-desc  { font-size:10px; font-weight:300; line-height:1.65; color:rgba(255,255,255,.7); }
+    .elbe-overlay-stat  { margin-top:10px; display:flex; gap:8px; flex-wrap:wrap; }
+    .elbe-stat-pill { font-size:9px; font-weight:500; padding:3px 8px; border-radius:20px; background:rgba(255,255,255,.12); color:rgba(255,255,255,.8); border:1px solid rgba(255,255,255,.15); }
+    .elbe-folder-index { position:absolute; top:14px; right:14px; font-size:10px; font-weight:300; color:rgba(255,255,255,.4); }
+    .elbe-legend { display:flex; margin-top:50px; border-top:1px solid var(--border); padding-top:28px; width:100%; max-width:700px; position:relative; z-index:1; }
+    .elbe-legend-item { flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer; opacity:.6; transition:opacity .3s; padding:0 8px; }
+    .elbe-legend-item:hover,.elbe-legend-item.active { opacity:1; }
+    .elbe-legend-dot  { width:8px; height:8px; border-radius:50%; margin-bottom:2px; }
+    .elbe-legend-name { font-size:8px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; text-align:center; color: var(--text); opacity: 0.8; }
+    .elbe-hint { margin-top:30px; font-size:10px; font-weight:300; color: var(--muted); letter-spacing:.1em; text-transform:uppercase; animation:elbePulse 3s ease-in-out infinite; position:relative; z-index:1; }
+    @keyframes elbePulse { 0%,100%{opacity:.3} 50%{opacity:.7} }
+
+    /* ── THEME TOGGLE (fixed) ── */
+    .theme-toggle {
+      position: fixed; bottom: 24px; right: 24px; z-index: 200;
+      display: flex; align-items: center; gap: 8px;
+      background: var(--toggle-bg); color: var(--text);
+      border: 1px solid var(--toggle-border); border-radius: 50px; padding: 9px 18px;
+      font-family: 'Poppins', sans-serif; font-size: 13px; font-weight: 500;
+      cursor: pointer; backdrop-filter: blur(8px);
+      transition: background .2s, border-color .2s, color .2s;
+      box-shadow: 0 4px 20px rgba(0,0,0,.3);
+    }
+    .theme-toggle:hover { border-color: var(--text); }
+
+    /* ── MAP OVERLAY ── */
+    #mapOverlay { display:none; position:fixed; inset:0; z-index:1000; background:#070b11; flex-direction:column; }
+    #mapOverlay.open { display:flex; }
+
+    .map-nav { height:50px; background:#05080f; border-bottom:1px solid #1a2535; display:flex; align-items:center; padding:0 20px; gap:8px; flex-shrink:0; }
+    .map-nav-brand { font-size:13px; font-weight:600; color:#dce8f5; letter-spacing:.3px; margin-right: 16px; }
+
+    /* estuary switch tabs */
+    .map-tab { font-size:13px; color:#6a7d92; padding:6px 16px; border-radius:4px; cursor:pointer; border:none; background:transparent; font-family:'Poppins',sans-serif; transition:color .2s, background .2s; position:relative; }
+    .map-tab:hover { color:#dce8f5; background:rgba(255,255,255,.06); }
+    .map-tab.active { color:#dce8f5; }
+    .map-tab.active::after { content:''; position:absolute; bottom:0; left:16px; right:16px; height:2px; background:#4da6ff; }
+
+    .map-nav-close { margin-left:auto; font-size:13px; color:#6a7d92; padding:6px 16px; border-radius:4px; cursor:pointer; border:none; background:transparent; font-family:'Poppins',sans-serif; transition:color .2s, background .2s; }
+    .map-nav-close:hover { color:#dce8f5; background:rgba(255,255,255,.06); }
+
+    .map-body { flex:1; display:flex; overflow:hidden; }
+    .map-sidebar { width:292px; flex-shrink:0; background:rgba(9,14,22,.94); border-right:1px solid #1a2535; display:flex; flex-direction:column; overflow-y:auto; z-index:10; }
+    .sb-header { padding:18px 20px 14px; background:#080d14; border-bottom:1px solid #1a2535; }
+    .sb-title  { font-size:20px; font-weight:700; color:#dce8f5; }
+    .sb-sub    { font-size:10px; font-family:'JetBrains Mono',monospace; color:#6a7d92; }
+    .live-dot  { display:inline-flex; align-items:center; gap:6px; font-size:9px; color:#3dffa0; margin-top:6px; }
+    .live-dot::before { content:''; width:7px; height:7px; border-radius:50%; background:#3dffa0; animation:pulse 1.8s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+    .sb-section { border-top:1px solid #1a2535; padding:12px 0; }
+    .sb-section-label { font-size:9px; font-family:'JetBrains Mono',monospace; color:#6a7d92; padding:0 20px 10px; text-transform:uppercase; }
+    .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:0 16px; }
+    .stat-box  { background:#0d1520; border:1px solid #1a2535; border-radius:5px; padding:8px 10px; }
+    .stat-val  { font-size:15px; font-weight:700; color:#dce8f5; }
+    .stat-lbl  { font-size:8px; color:#6a7d92; }
+    .bathy-legend { margin:10px 16px 0; background:#0d1520; border:1px solid #1a2535; border-radius:5px; padding:8px 10px; }
+    .bathy-legend-title { font-size:9px; color:#6a7d92; margin-bottom:6px; font-family:'JetBrains Mono',monospace; text-transform:uppercase; }
+    .bathy-gradient { height:10px; border-radius:3px; background:linear-gradient(to right,#08306b,#08519c,#2171b5,#4292c6,#6baed6,#9ecae1,#c6dbef,#deebf7); margin-bottom:4px; }
+    .bathy-labels { display:flex; justify-content:space-between; font-size:8px; color:#6a7d92; font-family:'JetBrains Mono',monospace; }
+    .bathy-status { font-size:8px; color:#6a7d92; margin-top:5px; font-family:'JetBrains Mono',monospace; }
+    .bathy-status span { color:#3dffa0; }
+    .map-area { flex:1; position:relative; background:#08111e; }
+    #portMap  { width:100%; height:100%; z-index:1; }
+    .map-controls { position:absolute; right:16px; top:16px; display:flex; flex-direction:column; gap:6px; z-index:1000; }
+    .map-btn { width:34px; height:34px; background:rgba(9,14,22,.94); border:1px solid #1a2535; border-radius:5px; color:#dce8f5; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:16px; transition:border-color .2s,color .2s; }
+    .map-btn:hover  { border-color:#4da6ff; color:#4da6ff; }
+    .map-btn.active { border-color:#4da6ff; color:#4da6ff; background:rgba(77,166,255,.1); }
+    .coord-bar { position:absolute; bottom:0; left:0; right:0; height:26px; background:#04070e; border-top:1px solid #1a2535; display:flex; align-items:center; padding:0 16px; font-size:9px; font-family:'JetBrains Mono'; color:#6a7d92; z-index:1000; }
+    .coord-bar span { color:#dce8f5; margin:0 10px 0 4px; }
+    .leaflet-container { background:#08111e !important; }
+    .leaflet-attribution-flag { display:none !important; }
+    .leaflet-control-attribution { font-size:8px !important; background:rgba(4,7,14,.8) !important; color:#6a7d92 !important; }
+    .leaflet-control-attribution a { color:#6a7d92 !important; }
+
+    /* ── MAP LIGHT MODE ── */
+    #mapOverlay.map-light { background:#f0f4f8; }
+    #mapOverlay.map-light .map-nav { background:#e4eaf2; border-bottom-color:#c8d4e0; }
+    #mapOverlay.map-light .map-nav-brand { color:#1a2535; }
+    #mapOverlay.map-light .map-tab { color:#8a9ab0; }
+    #mapOverlay.map-light .map-tab:hover { color:#1a2535; background:rgba(0,0,0,.05); }
+    #mapOverlay.map-light .map-tab.active { color:#1a2535; }
+    #mapOverlay.map-light .map-tab.active::after { background:#2a6eff; }
+    #mapOverlay.map-light .map-nav-close { color:#8a9ab0; }
+    #mapOverlay.map-light .map-nav-close:hover { color:#1a2535; background:rgba(0,0,0,.05); }
+    #mapOverlay.map-light .map-sidebar { background:#f8fafc; border-right-color:#c8d4e0; }
+    #mapOverlay.map-light .sb-header { background:#edf1f7; border-bottom-color:#c8d4e0; }
+    #mapOverlay.map-light .sb-title { color:#1a2535; }
+    #mapOverlay.map-light .sb-sub { color:#5a7090; }
+    #mapOverlay.map-light .live-dot { color:#00a060; }
+    #mapOverlay.map-light .live-dot::before { background:#00a060; }
+    #mapOverlay.map-light .sb-section { border-top-color:#c8d4e0; }
+    #mapOverlay.map-light .sb-section-label { color:#5a7090; }
+    #mapOverlay.map-light .stat-box { background:#edf1f7; border-color:#c8d4e0; }
+    #mapOverlay.map-light .stat-val { color:#1a2535; }
+    #mapOverlay.map-light .stat-lbl { color:#5a7090; }
+    #mapOverlay.map-light .bathy-legend { background:#edf1f7; border-color:#c8d4e0; }
+    #mapOverlay.map-light .bathy-legend-title { color:#5a7090; }
+    #mapOverlay.map-light .bathy-labels { color:#5a7090; }
+    #mapOverlay.map-light .bathy-status { color:#5a7090; }
+    #mapOverlay.map-light .map-area { background:#d4e0ec; }
+    #mapOverlay.map-light .map-btn { background:#edf1f7; border-color:#c8d4e0; color:#1a2535; }
+    #mapOverlay.map-light .map-btn:hover { border-color:#2a6eff; color:#2a6eff; }
+    #mapOverlay.map-light .map-btn.active { border-color:#2a6eff; color:#2a6eff; background:rgba(42,110,255,.1); }
+    #mapOverlay.map-light #mapLightBtn { border-color:#2a6eff; color:#2a6eff; background:rgba(42,110,255,.1); }
+    #mapOverlay.map-light .coord-bar { background:#e4eaf2; border-top-color:#c8d4e0; color:#5a7090; }
+    #mapOverlay.map-light .coord-bar span { color:#1a2535; }
+    #mapOverlay.map-light .leaflet-control-attribution { background:rgba(232,238,246,.9) !important; color:#5a7090 !important; }
+    #mapOverlay.map-light .leaflet-control-attribution a { color:#5a7090 !important; }
+
+    /* OpenSeaMap: multiply blend makes white transparent on light basemap */
+    #mapOverlay.map-light .leaflet-tile-pane .seamark-layer {
+      mix-blend-mode: multiply;
+    }
+
+    /* map light toggle button */
+    .map-light-btn { display:none; }
+    .map-light-btn:hover { color:#dce8f5; border-color:#4da6ff; }
+    #mapOverlay.map-light .map-light-btn { background:#c8d4e0; border-color:#c8d4e0; color:#1a2535; }
+    #mapOverlay.map-light .map-light-btn:hover { border-color:#2a6eff; }
+  </style>
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <header class="navbar">
+    <div class="logo">European port portal</div>
+    <nav><ul>
+      <li><a href="Tagus_context.html">Tagus</a></li>
+      <li><a href="Elbe_context.html">Elbe</a></li>
+      <li><a href="#">Hamburg</a></li>
+      <li><a href="#">Scheldt</a></li>
+      <li><a href="#">Seine</a></li>
+    </ul></nav>
+    <div class="login"><a href="#">Login</a></div>
+  </header>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="overlay"></div>
+    <div class="hero-content">
+      <h1>European Estuary Information<br>for Professionals</h1>
+      <p>Operational data for safe navigation including tides, pilotage and live updates.</p>
+      <span class="btn-outline" onclick="openMap('elbe')" style="display:inline-flex;align-items:center;gap:10px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+        Map viewer
+      </span>
+    </div>
+    <div class="live-card">
+      <h3>Live conditions</h3>
+      <div class="estuary"><strong>Tagus</strong><p>High Tide: 14:32 UTC</p><p>Wind: SW 18 kt</p></div>
+      <div class="estuary"><strong>Elbe</strong><p>Low Tide: 16:10 UTC</p><p class="advisory">Advisory Active</p></div>
+    </div>
+  </section>
+
+  <!-- CONTENT FOLDERS -->
+  <section class="estuary-selection">
+    <div class="selection-intro">
+      <p>The Tagus Estuary and the Elbe Estuary are two important European estuaries where major rivers meet the sea. The Tagus Estuary is located in western Portugal, where the Tagus River flows into the Atlantic Ocean near Lisbon. Similarly, the Elbe Estuary is found in northern Germany.</p>
+    </div>
+    <div class="elbe-nav-inner">
+      <div class="elbe-section-header"><h2>Contents</h2><p>Europe · More information</p></div>
+      <div class="stack-scene">
+        <div class="stack" id="stack">
+          <div class="elbe-folder" data-index="0" onclick="window.location.href='Elbe_context.html'">
+            <div class="elbe-folder-tab" style="background:#18056a"><span>Elbe</span></div>
+            <div class="elbe-folder-body">
+              <img src="HWUD01_elbe.jpg" onerror="this.style.background='linear-gradient(135deg,#1a2a1a,#2d4a0e,#4a7a1e)';this.removeAttribute('src')" alt="Elbe">
+              <div class="elbe-folder-overlay">
+                <div class="elbe-overlay-label">Estuary 01 · Germany</div>
+                <div class="elbe-overlay-title">Elbe Estuary</div>
+                <div class="elbe-overlay-desc">De Elbe mondt uit in de Noordzee bij Cuxhaven. Sterk beïnvloed door de haven van Hamburg.</div>
+                <div class="elbe-overlay-stat"><span class="elbe-stat-pill">148,286 km²</span><span class="elbe-stat-pill">Meso-tidal</span><span class="elbe-stat-pill">→ Lees meer</span></div>
+              </div>
+              <div class="elbe-folder-index">01 / 05</div>
+            </div>
+          </div>
+          <div class="elbe-folder" data-index="1" onclick="window.location.href='Tagus_context.html'">
+            <div class="elbe-folder-tab" style="background:#0C1CE8"><span>Tagus</span></div>
+            <div class="elbe-folder-body">
+              <img src="HWUD01_Tagus.jpg" onerror="this.style.background='linear-gradient(135deg,#0a1535,#1a3a7a,#0d5c8c)';this.removeAttribute('src')" alt="Tagus">
+              <div class="elbe-folder-overlay">
+                <div class="elbe-overlay-label">Estuary 02 · Portugal</div>
+                <div class="elbe-overlay-title">Tagus Estuary</div>
+                <div class="elbe-overlay-desc">Het Tejo-estuarium bij Lissabon is het grootste estuarium van het Iberisch schiereiland.</div>
+                <div class="elbe-overlay-stat"><span class="elbe-stat-pill">320 km²</span><span class="elbe-stat-pill">Meso-tidal</span><span class="elbe-stat-pill">→ Lees meer</span></div>
+              </div>
+              <div class="elbe-folder-index">02 / 05</div>
+            </div>
+          </div>
+          <div class="elbe-folder" data-index="2">
+            <div class="elbe-folder-tab" style="background:#0056FF"><span>Humber</span></div>
+            <div class="elbe-folder-body">
+              <img src="HWUD01_humber.jpg" onerror="this.style.background='linear-gradient(135deg,#1a2535,#3a5070,#8ab8d4)';this.removeAttribute('src')" alt="Humber">
+              <div class="elbe-folder-overlay"><div class="elbe-overlay-label">Estuary 03 · United Kingdom</div><div class="elbe-overlay-title">Humber Estuary</div><div class="elbe-overlay-desc">Groot estuarium aan de oostkust van Engeland.</div></div>
+              <div class="elbe-folder-index">03 / 05</div>
+            </div>
+          </div>
+          <div class="elbe-folder" data-index="3">
+            <div class="elbe-folder-tab" style="background:#0C90E8"><span>Scheldt</span></div>
+            <div class="elbe-folder-body">
+              <img src="HWUD01_scheldt.jpg" onerror="this.style.background='linear-gradient(135deg,#2a1a10,#7a4a20,#c8a060)';this.removeAttribute('src')" alt="Scheldt">
+              <div class="elbe-folder-overlay"><div class="elbe-overlay-label">Estuary 04 · Belgium / Netherlands</div><div class="elbe-overlay-title">Scheldt Estuary</div><div class="elbe-overlay-desc">Verbindt Antwerpen met de Noordzee.</div></div>
+              <div class="elbe-folder-index">04 / 05</div>
+            </div>
+          </div>
+          <div class="elbe-folder" data-index="4">
+            <div class="elbe-folder-tab" style="background:#0DDEFF;border:1px solid rgba(255,255,255,.15)"><span style="color:rgba(0,0,0,0.7)">Seine</span></div>
+            <div class="elbe-folder-body">
+              <img src="HWUD01_seine.jpg" onerror="this.style.background='linear-gradient(135deg,#0e1a0a,#1e4a18,#3a8a30)';this.removeAttribute('src')" alt="Seine">
+              <div class="elbe-folder-overlay"><div class="elbe-overlay-label">Estuary 05 · France</div><div class="elbe-overlay-title">Seine Estuary</div><div class="elbe-overlay-desc">Mondt uit bij Le Havre met getijdennatuur.</div></div>
+              <div class="elbe-folder-index">05 / 05</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="elbe-legend" id="legend">
+        <div class="elbe-legend-item active" data-index="0" onclick="window.location.href='Elbe_context.html'"><div class="elbe-legend-dot" style="background:#0F0342"></div><div class="elbe-legend-name">Elbe</div></div>
+        <div class="elbe-legend-item" data-index="1" onclick="window.location.href='Tagus_context.html'"><div class="elbe-legend-dot" style="background:#0C1CE8"></div><div class="elbe-legend-name">Tagus</div></div>
+        <div class="elbe-legend-item" data-index="2"><div class="elbe-legend-dot" style="background:#0056FF"></div><div class="elbe-legend-name">Humber</div></div>
+        <div class="elbe-legend-item" data-index="3"><div class="elbe-legend-dot" style="background:#0C90E8"></div><div class="elbe-legend-name">Scheldt</div></div>
+        <div class="elbe-legend-item" data-index="4"><div class="elbe-legend-dot" style="background:#0DDEFF"></div><div class="elbe-legend-name">Seine</div></div>
+      </div>
+      <p class="elbe-hint">↑ hover over een folder om meer te ontdekken</p>
+    </div>
+  </section>
+
+  <!-- MAP VIEWER OVERLAY -->
+  <div id="mapOverlay">
+    <div class="map-nav">
+      <div class="map-nav-brand">MAP VIEWER</div>
+      <!-- estuary switch tabs -->
+      <button class="map-tab active" id="tabElbe"  onclick="switchEstuary('elbe')">Elbe</button>
+      <button class="map-tab"        id="tabTagus" onclick="switchEstuary('tagus')">Tagus</button>
+      <button class="map-nav-close"  onclick="closeMap()">✕ Close</button>
+    </div>
+    <div class="map-body">
+      <aside class="map-sidebar">
+        <div class="sb-header">
+          <div class="sb-title" id="mapTitle">Hamburg Port</div>
+          <div class="sb-sub"   id="mapSub">ELBE KM 623 · NORDERELBE</div>
+          <div class="live-dot" id="clock">LIVE · --:--:-- UTC</div>
+        </div>
+        <div class="sb-section">
+          <div class="sb-section-label">Water level</div>
+          <div style="padding:0 16px 10px"><canvas id="tideChart" height="60" style="width:100%"></canvas></div>
+          <div class="stat-grid">
+            <div class="stat-box"><div class="stat-val" id="tideCur" style="color:#4da6ff">+1.82m</div><div class="stat-lbl">Current</div></div>
+            <div class="stat-box"><div class="stat-val" id="tideNext" style="color:#ff6b35">15:24</div><div class="stat-lbl">Next HW</div></div>
+          </div>
+        </div>
+        <div class="sb-section">
+          <div class="sb-section-label">Wind</div>
+          <div style="display:flex;padding:0 16px;gap:10px;align-items:center">
+            <canvas id="windCanvas" width="80" height="80"></canvas>
+            <div><div class="stat-val" id="windVal">NNW 18kt</div><div class="stat-lbl" id="windBft">BEAUFORT 4</div></div>
+          </div>
+        </div>
+        <div class="sb-section">
+          <div class="sb-section-label">Bathymetry</div>
+          <div class="bathy-legend">
+            <div class="bathy-legend-title">GEBCO Depth (m)</div>
+            <div class="bathy-gradient"></div>
+            <div class="bathy-labels"><span>Deep</span><span>Shallow</span></div>
+            <div class="bathy-status" id="bathyStatus">Status: <span>ACTIVE</span></div>
+          </div>
+          <div style="padding:8px 16px 0;font-size:8px;color:#6a7d92;font-family:'JetBrains Mono'">Source: ESRI/GEBCO · OpenSeaMap</div>
+        </div>
+      </aside>
+      <div class="map-area">
+        <div id="portMap"></div>
+        <div class="map-controls">
+          <div class="map-btn" onclick="map&&map.zoomIn()">+</div>
+          <div class="map-btn" onclick="map&&map.zoomOut()">−</div>
+          <div class="map-btn" onclick="resetMap()">⊙</div>
+          <div class="map-btn active" id="bathyBtn" onclick="toggleBathy()">≈</div>
+          <div class="map-btn" id="mapLightBtn" onclick="toggleMapLight()" title="Light/Dark basemap" style="font-size:14px">☀️</div>
+        </div>
+        <div class="coord-bar">LAT <span id="lat">53.54</span> LON <span id="lon">9.96</span> ZOOM <span id="zoom">13</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- THEME TOGGLE -->
+  <button class="theme-toggle" onclick="toggleTheme()">
+    <span id="themeIcon">☀️</span>
+    <span id="themeLabel">Light mode</span>
+  </button>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+
+    /* ── FOLDERS ── */
+    const folders     = document.querySelectorAll('.elbe-folder');
+    const legendItems = document.querySelectorAll('.elbe-legend-item');
+    const stack       = document.getElementById('stack');
+    const scene       = document.querySelector('.stack-scene');
+    [-8,-4,0,4,8].forEach((a,i) => { folders[i].style.transform=`rotateY(${a}deg)`; folders[i].style.zIndex=5-i; });
+    folders.forEach((f,i) => {
+      f.addEventListener('mouseenter', () => { folders.forEach((x,j)=>{ if(j!==i) x.style.filter='brightness(.5) saturate(.6)'; }); legendItems.forEach(l=>l.classList.remove('active')); legendItems[i]?.classList.add('active'); });
+      f.addEventListener('mouseleave', () => { folders.forEach(x=>x.style.filter='brightness(.75) saturate(.8)'); });
+    });
+    document.addEventListener('mousemove', e => { const r=scene.getBoundingClientRect(); stack.style.transform=`rotateX(${6-(e.clientY-r.top-r.height/2)/r.height*5}deg) rotateY(${4+(e.clientX-r.left-r.width/2)/r.width*6}deg)`; });
+    document.addEventListener('mouseleave', ()=>{ stack.style.transform='rotateX(6deg) rotateY(4deg)'; });
+
+    /* ── MAP STATE ── */
+    let map, mapReady=false, currentEstuary='elbe', bathyOn=true, mapLight=false;
+
+    const estuaryConfig = {
+      elbe: {
+        center:[53.54,9.96], zoom:13,
+        title:'Hamburg Port', sub:'ELBE KM 623 · NORDERELBE',
+        wind:'NNW 18 kt', bft:'BEAUFORT 4',
+        windAngle: 337.5,
+        // Realistic Elbe tidal params: range ~3.8m, semi-diurnal, slight asymmetry
+        tideRange: 3.8,   // metres top to bottom
+        tideMidpoint: 1.0, // mean water level above chart datum
+        tideSpeed: 0.00008, // radians per frame (~12.4h cycle at 60fps)
+        tidePhaseStart: 1.2  // starting phase offset
+      },
+      tagus: {
+        center:[38.71,-9.13], zoom:12,
+        title:'Port of Lisbon', sub:'TAGUS · BARRA ENTRANCE',
+        wind:'SW 18 kt', bft:'BEAUFORT 4',
+        windAngle: 225,
+        // Realistic Tagus tidal params: range ~3.2m, slightly slower cycle
+        tideRange: 3.2,
+        tideMidpoint: 1.6,
+        tideSpeed: 0.000075,
+        tidePhaseStart: 0.4
+      }
+    };
+
+    function openMap(estuary) {
+      document.getElementById('mapOverlay').classList.add('open');
+      document.body.style.overflow='hidden';
+      currentEstuary = estuary || 'elbe';
+      if (!mapReady) {
+        initMap();
+        mapReady = true;
+        // sync AFTER initMap so tile layers exist
+        const pageIsLight = document.documentElement.getAttribute('data-theme') === 'light';
+        if (pageIsLight) { mapLight = false; toggleMapLight(); }
+      } else {
+        applyEstuary(currentEstuary);
+        setTimeout(()=>map.invalidateSize(), 50);
+      }
+      updateTabs();
+    }
+
+    function closeMap() {
+      document.getElementById('mapOverlay').classList.remove('open');
+      document.body.style.overflow='';
+    }
+
+    function switchEstuary(e) {
+      currentEstuary=e;
+      updateTabs();
+      applyEstuary(e);
+    }
+
+    function updateTabs() {
+      document.getElementById('tabElbe').classList.toggle('active',  currentEstuary==='elbe');
+      document.getElementById('tabTagus').classList.toggle('active', currentEstuary==='tagus');
+    }
+
+    function applyEstuary(e) {
+      const c = estuaryConfig[e];
+      map.setView(c.center, c.zoom);
+      document.getElementById('mapTitle').textContent = c.title;
+      document.getElementById('mapSub').textContent   = c.sub;
+      document.getElementById('tideCur').textContent  = c.tide;
+      document.getElementById('tideNext').textContent = c.next;
+      document.getElementById('windVal').textContent  = c.wind;
+      document.getElementById('windBft').textContent  = c.bft;
+      drawTide(c);
+      drawWind(c.windAngle);
+    }
+
+    // tide animation state
+    let tideAnimFrame = null;
+    let tidePhase = 0;
+    let currentTideConfig = null;
+
+    function drawTide(c) {
+      const tc = document.getElementById('tideChart');
+      if (!tc) return;
+      if (tideAnimFrame) { cancelAnimationFrame(tideAnimFrame); tideAnimFrame = null; }
+      currentTideConfig = c;
+      tc.width = tc.offsetWidth || 260; tc.height = 60;
+      tidePhase = c.tidePhaseStart;
+      animateTide();
+    }
+
+    function animateTide() {
+      const tc = document.getElementById('tideChart');
+      if (!tc || !currentTideConfig) return;
+      const ctx = tc.getContext('2d');
+      const w = tc.width, h = tc.height;
+      const c = currentTideConfig;
+
+      // advance phase — very slow to mimic real tidal movement
+      tidePhase += c.tideSpeed;
+
+      // current water level: sinusoidal between (midpoint - range/2) and (midpoint + range/2)
+      const curLevel = c.tideMidpoint + (c.tideRange / 2) * Math.sin(tidePhase);
+      const halfRange = c.tideRange / 2;
+
+      // y mapping: midpoint maps to h/2, full range fills ~80% of canvas height
+      const scale = (h * 0.8) / c.tideRange;
+      const midY  = h / 2;
+      const yForLevel = lvl => midY - (lvl - c.tideMidpoint) * scale;
+
+      // draw the wave: show ~2 full tidal cycles across the canvas width
+      // each pixel x represents a time offset of (2 * 2π / w) radians
+      const yForX = x => {
+        const xPhase = tidePhase + (x / w) * 4 * Math.PI;
+        const lvl = c.tideMidpoint + (c.tideRange / 2) * Math.sin(xPhase);
+        return yForLevel(lvl);
+      };
+
+      ctx.clearRect(0,0,w,h);
+
+      // gradient fill under curve
+      const g = ctx.createLinearGradient(0,0,0,h);
+      g.addColorStop(0,'rgba(77,166,255,0.35)'); g.addColorStop(1,'rgba(77,166,255,0.0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.moveTo(0, h);
+      for(let x=0;x<=w;x++) ctx.lineTo(x, yForX(x));
+      ctx.lineTo(w, h); ctx.closePath(); ctx.fill();
+
+      // wave line
+      ctx.strokeStyle='#4da6ff'; ctx.lineWidth=2;
+      ctx.beginPath();
+      for(let x=0;x<=w;x++) ctx.lineTo(x, yForX(x));
+      ctx.stroke();
+
+      // dot sits exactly ON the line at x=25%
+      const dotX = Math.round(w * 0.25);
+      const dotY = yForX(dotX);
+      ctx.beginPath(); ctx.arc(dotX, dotY, 4, 0, Math.PI*2);
+      ctx.fillStyle='#4da6ff'; ctx.fill();
+      // glow
+      ctx.beginPath(); ctx.arc(dotX, dotY, 7, 0, Math.PI*2);
+      ctx.strokeStyle='rgba(77,166,255,0.3)'; ctx.lineWidth=2; ctx.stroke();
+
+      // update live water level text
+      const el = document.getElementById('tideCur');
+      if (el) el.textContent = (curLevel >= 0 ? '+' : '') + curLevel.toFixed(2) + 'm';
+
+      // update Next HW time — find next peak from current phase
+      const elNext = document.getElementById('tideNext');
+      if (elNext) {
+        // time to next peak in real hours: (π/2 - phase % 2π) / tideSpeed / 60fps / 3600s
+        const phMod = tidePhase % (2 * Math.PI);
+        const toNextPeak = phMod < Math.PI/2
+          ? (Math.PI/2 - phMod)
+          : (Math.PI/2 + 2*Math.PI - phMod);
+        const hoursToHW = (toNextPeak / c.tideSpeed) / 3600;
+        const now = new Date();
+        const hwH = (now.getUTCHours() + 1 + Math.floor(hoursToHW)) % 24;
+        const hwM = Math.floor((hoursToHW % 1) * 60);
+        elNext.textContent = `${hwH.toString().padStart(2,'0')}:${hwM.toString().padStart(2,'0')}`;
+      }
+
+      tideAnimFrame = requestAnimationFrame(animateTide);
+    }
+
+    function drawWind(angleDeg) {
+      const wc = document.getElementById('windCanvas');
+      if (!wc) return;
+      // force correct canvas size
+      wc.width = 80; wc.height = 80;
+      const ctx = wc.getContext('2d');
+      ctx.clearRect(0,0,80,80);
+      // outer ring
+      ctx.strokeStyle='#1a2535'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(40,40,35,0,Math.PI*2); ctx.stroke();
+      // cardinal lines
+      ctx.strokeStyle='#0f1d2e'; ctx.lineWidth=1;
+      [0,1,2,3].forEach(i=>{
+        const a = i*Math.PI/2;
+        ctx.beginPath(); ctx.moveTo(40,40);
+        ctx.lineTo(40+Math.sin(a)*35, 40-Math.cos(a)*35); ctx.stroke();
+      });
+      // wind arrow — angleDeg is direction FROM North clockwise
+      const rad = (angleDeg * Math.PI) / 180;
+      ctx.save(); ctx.translate(40,40); ctx.rotate(rad);
+      ctx.strokeStyle='#4da6ff'; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.moveTo(0,26); ctx.lineTo(0,-26); ctx.stroke();
+      ctx.fillStyle='#4da6ff';
+      ctx.beginPath(); ctx.moveTo(0,-26); ctx.lineTo(-5,-16); ctx.lineTo(5,-16); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      // N label
+      ctx.fillStyle='#6a7d92'; ctx.font='bold 9px JetBrains Mono,monospace';
+      ctx.textAlign='center'; ctx.fillText('N',40,8);
+    }
+
+    document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeMap(); });
+
+    /* ── MAP INIT ── */
+    // tile layers declared globally so toggleMapLight can reach updateLayers
+    let esriOcean, esriOceanRef, cartoLayer, cartoLight, esriTopo, openSeaMap;
+
+    function updateLayers() {
+      if (!map) return;
+      const z = map.getZoom();
+      const s = document.getElementById('bathyStatus');
+
+      // 1. Remove ALL base layers first — clean slate every time
+      [esriOcean, esriOceanRef, cartoLayer, cartoLight, esriTopo, openSeaMap]
+        .forEach(l => { if (l && map.hasLayer(l)) map.removeLayer(l); });
+
+      // 2. Add only the correct layers for current mode
+      if (!bathyOn) {
+        // Bathy off: just basemap, no nautical overlay
+        map.addLayer(mapLight ? cartoLight : cartoLayer);
+        s.innerHTML = 'Status: <span style="color:#6a7d92">OFF</span>';
+      } else if (z <= 10) {
+        // Overview zoom
+        if (mapLight) {
+          map.addLayer(esriTopo);
+          map.addLayer(openSeaMap);
+          s.innerHTML = 'Mode: <span style="color:#2a6eff">ESRI TOPO</span>';
+        } else {
+          map.addLayer(esriOcean);
+          map.addLayer(esriOceanRef);
+          s.innerHTML = 'Mode: <span>ESRI OCEAN</span>';
+        }
+      } else {
+        // Detail zoom
+        if (mapLight) {
+          map.addLayer(cartoLight);
+          map.addLayer(openSeaMap);
+          s.innerHTML = 'Mode: <span style="color:#2a6eff">CARTO LIGHT</span>';
+        } else {
+          map.addLayer(cartoLayer);
+          map.addLayer(openSeaMap);
+          s.innerHTML = 'Mode: <span style="color:#3dffa0">OPENSEAMAP</span>';
+        }
+      }
+    }
+
+    window.toggleMapLight = function() {
+      mapLight = !mapLight;
+      document.getElementById('mapOverlay').classList.toggle('map-light', mapLight);
+      const btn = document.getElementById('mapLightBtn');
+      btn.textContent = mapLight ? '🌙' : '☀️';
+      btn.classList.toggle('active', mapLight);
+      updateLayers();
+    };
+
+    window.toggleBathy = function() {
+      bathyOn = !bathyOn;
+      document.getElementById('bathyBtn').classList.toggle('active', bathyOn);
+      updateLayers();
+    };
+
+    window.resetMap = function() {
+      map.setView(estuaryConfig[currentEstuary].center, estuaryConfig[currentEstuary].zoom);
+    };
+
+    function initMap() {
+      map = L.map('portMap',{zoomControl:false}).setView(estuaryConfig[currentEstuary].center, estuaryConfig[currentEstuary].zoom);
+      esriOcean    = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',      {attribution:'© Esri, GEBCO',maxZoom:13});
+      esriOceanRef = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}', {attribution:'',maxZoom:13,opacity:.85});
+      cartoLayer   = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',                                              {attribution:'© OpenStreetMap · © CARTO',subdomains:'abcd',maxZoom:19});
+      openSeaMap   = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',                                                        {attribution:'© OpenSeaMap',maxZoom:18});
+      cartoLight   = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',                                               {attribution:'© OpenStreetMap · © CARTO',subdomains:'abcd',maxZoom:19});
+      esriTopo     = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',                {attribution:'© Esri',maxZoom:19});
+
+      map.on('zoomend', updateLayers);
+      map.on('move',()=>{ const c=map.getCenter(); document.getElementById('lat').textContent=c.lat.toFixed(4); document.getElementById('lon').textContent=c.lng.toFixed(4); document.getElementById('zoom').textContent=map.getZoom(); });
+      updateLayers();
+
+      /* ship marker Elbe */
+      L.marker([53.545,9.95],{icon:L.divIcon({className:'',html:`<div style="background:#4da6ff;width:10px;height:10px;border-radius:50%;border:2px solid white;box-shadow:0 0 6px rgba(77,166,255,.8)"></div>`,iconSize:[10,10],iconAnchor:[5,5]})}).addTo(map).bindPopup('<b>MV ELBE STAR</b><br>Snelheid: 12kn');
+      /* ship marker Tagus */
+      L.marker([38.705,-9.14],{icon:L.divIcon({className:'',html:`<div style="background:#4da6ff;width:10px;height:10px;border-radius:50%;border:2px solid white;box-shadow:0 0 6px rgba(77,166,255,.8)"></div>`,iconSize:[10,10],iconAnchor:[5,5]})}).addTo(map).bindPopup('<b>MV TAGUS STAR</b><br>Snelheid: 8kn');
+
+      applyEstuary(currentEstuary);
+    }
+
+    /* ── CLOCK ── */
+    function tick() { const n=new Date(); const h=(n.getUTCHours()+1)%24; document.getElementById('clock').textContent=`LIVE · ${h.toString().padStart(2,'0')}:${n.getUTCMinutes().toString().padStart(2,'0')}:${n.getUTCSeconds().toString().padStart(2,'0')} UTC+1`; }
+    setInterval(tick,1000); tick();
+
+    /* ── THEME ── */
+    function toggleTheme() {
+      const html=document.documentElement, isDark=html.getAttribute('data-theme')==='dark', next=isDark?'light':'dark';
+      html.setAttribute('data-theme',next);
+      document.getElementById('themeIcon').textContent  = isDark?'🌙':'☀️';
+      document.getElementById('themeLabel').textContent = isDark?'Dark mode':'Light mode';
+      localStorage.setItem('theme',next);
+      // sync map light/dark with page theme
+      if (mapReady) {
+        const shouldBeLight = (next === 'light');
+        if (mapLight !== shouldBeLight) {
+          mapLight = shouldBeLight;
+          document.getElementById('mapOverlay').classList.toggle('map-light', mapLight);
+          const btn = document.getElementById('mapLightBtn');
+          if (btn) { btn.textContent = mapLight ? '🌙' : '☀️'; btn.classList.toggle('active', mapLight); }
+          updateLayers();
+        }
+      }
+    }
+    const saved=localStorage.getItem('theme')||'dark';
+    document.documentElement.setAttribute('data-theme',saved);
+    document.getElementById('themeIcon').textContent  = saved==='dark'?'☀️':'🌙';
+    document.getElementById('themeLabel').textContent = saved==='dark'?'Light mode':'Dark mode';
+
+    // Auto-open map if navigated from context page
+    const autoMap = sessionStorage.getItem('openMap');
+    if (autoMap) { sessionStorage.removeItem('openMap'); openMap(autoMap); }
+
+  </script>
+</body>
+</html>

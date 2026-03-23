@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hamburg Port Viewer — European Port Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:      #070b11;
+            --panel:   rgba(9,14,22,0.94);
+            --border:  #1a2535;
+            --accent:  #4da6ff;
+            --warn:    #ff6b35;
+            --ok:      #3dffa0;
+            --text:    #dce8f5;
+            --muted:   #6a7d92;
+            --deep:    #0c2038;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Poppins', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── NAV ── */
+        nav {
+            height: 50px;
+            background: #05080f;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 100;
+        }
+        .nav-brand { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: .3px; }
+        .nav-links { margin-left: auto; display: flex; gap: 6px; }
+        .nav-link { font-size: 13px; color: var(--muted); padding: 6px 16px; border-radius: 4px; cursor: pointer; position: relative; }
+        .nav-link.active { color: var(--text); }
+        .nav-link.active::after { content: ''; position: absolute; bottom: 0; left: 16px; right: 16px; height: 2px; background: var(--accent); }
+
+        /* ── MAIN LAYOUT ── */
+        .main { flex: 1; display: flex; overflow: hidden; }
+
+        /* ── SIDEBAR ── */
+        .sidebar {
+            width: 292px; flex-shrink: 0;
+            background: var(--panel);
+            border-right: 1px solid var(--border);
+            display: flex; flex-direction: column;
+            overflow-y: auto; z-index: 10;
+        }
+        .sb-header { padding: 18px 20px 14px; background: #080d14; border-bottom: 1px solid var(--border); }
+        .sb-title { font-size: 20px; font-weight: 700; }
+        .sb-sub { font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--muted); }
+        .live-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 9px; color: var(--ok); margin-top: 6px; }
+        .live-dot::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); animation: pulse 1.8s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+        .sb-section { border-top: 1px solid var(--border); padding: 12px 0; }
+        .sb-section-label { font-size: 9px; font-family: 'JetBrains Mono', monospace; color: var(--muted); padding: 0 20px 10px; text-transform: uppercase; }
+        .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 0 16px; }
+        .stat-box { background: #0d1520; border: 1px solid var(--border); border-radius: 5px; padding: 8px 10px; }
+        .stat-val { font-size: 15px; font-weight: 700; }
+        .stat-lbl { font-size: 8px; color: var(--muted); }
+
+        /* Bathy legend */
+        .bathy-legend {
+            margin: 10px 16px 0;
+            background: #0d1520;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            padding: 8px 10px;
+        }
+        .bathy-legend-title { font-size: 9px; color: var(--muted); margin-bottom: 6px; font-family: 'JetBrains Mono', monospace; text-transform: uppercase; }
+        .bathy-gradient {
+            height: 10px;
+            border-radius: 3px;
+            background: linear-gradient(to right,
+                #08306b, #08519c, #2171b5, #4292c6,
+                #6baed6, #9ecae1, #c6dbef, #deebf7
+            );
+            margin-bottom: 4px;
+        }
+        .bathy-labels { display: flex; justify-content: space-between; font-size: 8px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+        .bathy-status { font-size: 8px; color: var(--muted); margin-top: 5px; font-family: 'JetBrains Mono', monospace; }
+        .bathy-status span { color: var(--ok); }
+
+        /* ── MAP AREA ── */
+        .map-area { flex: 1; position: relative; background: #08111e; }
+        #portMap { width: 100%; height: 100%; z-index: 1; }
+
+        /* Overlays */
+        .map-controls { position: absolute; right: 16px; top: 16px; display: flex; flex-direction: column; gap: 6px; z-index: 1000; }
+        .map-btn {
+            width: 34px; height: 34px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            color: var(--text);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            transition: border-color 0.2s, color 0.2s;
+        }
+        .map-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .map-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(77,166,255,0.1); }
+
+        .coord-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 26px; background: #04070e; border-top: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; font-size: 9px; font-family: 'JetBrains Mono'; color: var(--muted); z-index: 1000; }
+        .coord-bar span { color: var(--text); margin: 0 10px 0 4px; }
+
+        /* Leaflet Dark Theme Overrides */
+        .leaflet-container { background: #08111e !important; }
+        .leaflet-attribution-flag { display: none !important; }
+        .leaflet-control-attribution { font-size: 8px !important; background: rgba(4,7,14,0.8) !important; color: var(--muted) !important; }
+        .leaflet-control-attribution a { color: var(--muted) !important; }
+    </style>
+</head>
+<body>
+
+<nav>
+    <div class="nav-brand">ESTUARY PORT PORTAL</div>
+    <div class="nav-links">
+        <div class="nav-link">Tagus</div>
+        <div class="nav-link active">Hamburg Port</div>
+    </div>
+</nav>
+
+<div class="main">
+    <aside class="sidebar">
+        <div class="sb-header">
+            <div class="sb-title">Hamburg Port</div>
+            <div class="sb-sub">ELBE KM 623 · NORDERELBE</div>
+            <div class="live-dot" id="clock">LIVE · --:--:-- UTC</div>
+        </div>
+
+        <div class="sb-section">
+            <div class="sb-section-label">Waterstand</div>
+            <div style="padding: 0 16px 10px;"><canvas id="tideChart" height="60" style="width:100%"></canvas></div>
+            <div class="stat-grid">
+                <div class="stat-box"><div class="stat-val" style="color:var(--accent)">+1.82m</div><div class="stat-lbl">Huidig</div></div>
+                <div class="stat-box"><div class="stat-val" style="color:var(--warn)">15:24</div><div class="stat-lbl">Volgend HW</div></div>
+            </div>
+        </div>
+
+        <div class="sb-section">
+            <div class="sb-section-label">Wind</div>
+            <div style="display:flex; padding: 0 16px; gap: 10px; align-items:center;">
+                <canvas id="windCanvas" width="80" height="80"></canvas>
+                <div>
+                    <div class="stat-val">NNW 18kt</div>
+                    <div class="stat-lbl">BEAUFORT 4</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="sb-section">
+            <div class="sb-section-label">Bathymetrie</div>
+            <div class="bathy-legend">
+                <div class="bathy-legend-title">GEBCO Diepte (m)</div>
+                <div class="bathy-gradient"></div>
+                <div class="bathy-labels"><span>Diep</span><span>Ondiep</span></div>
+                <div class="bathy-status" id="bathyStatus">Status: <span>ACTIEF</span></div>
+            </div>
+            <div style="padding: 8px 16px 0; font-size: 8px; color: var(--muted); font-family: 'JetBrains Mono';">
+                Bron: ESRI/GEBCO (overzicht) · OpenSeaMap (detail)
+            </div>
+        </div>
+    </aside>
+
+    <div class="map-area">
+        <div id="portMap"></div>
+
+        <div class="map-controls">
+            <div class="map-btn" onclick="map.zoomIn()" title="Inzoomen">+</div>
+            <div class="map-btn" onclick="map.zoomOut()" title="Uitzoomen">−</div>
+            <div class="map-btn" onclick="resetMap()" title="Reset weergave">⊙</div>
+            <div class="map-btn active" id="bathyBtn" onclick="toggleBathy()" title="Bathymetrie aan/uit">≈</div>
+        </div>
+
+        <div class="coord-bar">
+            LAT <span id="lat">53.54</span> LON <span id="lon">9.96</span> ZOOM <span id="zoom">13</span>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+
+    // ── 1. Klok ──────────────────────────────────────────────────────────────
+    function updateClock() {
+        const now = new Date();
+        document.getElementById('clock').textContent =
+            `LIVE · ${now.getUTCHours().toString().padStart(2,'0')}:${now.getUTCMinutes().toString().padStart(2,'0')}:${now.getUTCSeconds().toString().padStart(2,'0')} UTC`;
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    // ── 2. Kaart ─────────────────────────────────────────────────────────────
+    const map = L.map('portMap', { zoomControl: false }).setView([53.54, 9.96], 13);
+
+    // ── Kaartlagen ───────────────────────────────────────────────────────────
+    // Laag A: ESRI Ocean Base — bathymetrie overzicht (werkt goed t/m zoom 10)
+    const esriOcean = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
+        { attribution: '© Esri, GEBCO, NOAA', maxZoom: 13, opacity: 1.0 }
+    );
+
+    // Laag B: ESRI Ocean Reference — labels/namen overlay op ESRI Ocean
+    const esriOceanRef = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}',
+        { attribution: '', maxZoom: 13, opacity: 0.85 }
+    );
+
+    // Laag C: CartoDB Dark Matter — donkere basiskaart voor hoge zoom
+    const cartoLayer = L.tileLayer(
+        'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+        { attribution: '© OpenStreetMap · © CARTO', subdomains: 'abcd', maxZoom: 19 }
+    );
+
+    // Laag D: OpenSeaMap — nautische overlay (dieptelots, boeien, havens, ankergrond)
+    // Publieke XYZ tiles, speciaal voor maritieme navigatie, geen CORS
+    const openSeaMap = L.tileLayer(
+        'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
+        { attribution: '© OpenSeaMap', maxZoom: 18, opacity: 1.0 }
+    );
+
+    let bathyEnabled = true;
+
+    // ── Automatische laagwisseling op basis van zoom ─────────────────────────
+    // Zoom ≤ 10 : ESRI Ocean + Reference (bathymetrie overzicht)
+    // Zoom > 10 : CartoDB Dark + OpenSeaMap (nautische havendetail)
+    const ZOOM_BREAKPOINT = 10;
+
+    function updateLayers() {
+        const zoom = map.getZoom();
+        const isOverview = zoom <= ZOOM_BREAKPOINT;
+
+        if (!bathyEnabled) {
+            // Bathy uit: altijd CartoDB + geen bathy lagen
+            if (!map.hasLayer(cartoLayer))   map.addLayer(cartoLayer);
+            if (map.hasLayer(esriOcean))     map.removeLayer(esriOcean);
+            if (map.hasLayer(esriOceanRef))  map.removeLayer(esriOceanRef);
+            if (map.hasLayer(openSeaMap))    map.removeLayer(openSeaMap);
+        } else if (isOverview) {
+            // Laag zoom: ESRI Ocean bathymetrie
+            if (!map.hasLayer(esriOcean))    map.addLayer(esriOcean);
+            if (!map.hasLayer(esriOceanRef)) map.addLayer(esriOceanRef);
+            if (map.hasLayer(cartoLayer))    map.removeLayer(cartoLayer);
+            if (map.hasLayer(openSeaMap))    map.removeLayer(openSeaMap);
+        } else {
+            // Hoge zoom: CartoDB Dark + OpenSeaMap nautisch
+            if (!map.hasLayer(cartoLayer))   map.addLayer(cartoLayer);
+            if (!map.hasLayer(openSeaMap))   map.addLayer(openSeaMap);
+            if (map.hasLayer(esriOcean))     map.removeLayer(esriOcean);
+            if (map.hasLayer(esriOceanRef))  map.removeLayer(esriOceanRef);
+        }
+
+        updateBathyStatus();
+    }
+
+    // Toggle: bathy aan/uit
+    function toggleBathy() {
+        bathyEnabled = !bathyEnabled;
+        const btn = document.getElementById('bathyBtn');
+        btn.classList.toggle('active', bathyEnabled);
+        updateLayers();
+    }
+
+    function updateBathyStatus() {
+        const zoom = map.getZoom();
+        const statusEl = document.getElementById('bathyStatus');
+        if (!bathyEnabled) {
+            statusEl.innerHTML = 'Status: <span style="color:var(--muted)">UIT</span>';
+        } else if (zoom <= ZOOM_BREAKPOINT) {
+            statusEl.innerHTML = 'Modus: <span>ESRI OCEAN</span>';
+        } else {
+            statusEl.innerHTML = 'Modus: <span style="color:#3dffa0">OPENSEAMAP</span>';
+        }
+    }
+
+    map.on('zoomend', updateLayers);
+    updateLayers(); // init
+
+    // ── Reset ─────────────────────────────────────────────────────────────────
+    function resetMap() { map.setView([53.54, 9.96], 13); }
+
+    // ── Coördinaten bar ───────────────────────────────────────────────────────
+    map.on('move', () => {
+        const c = map.getCenter();
+        document.getElementById('lat').textContent = c.lat.toFixed(4);
+        document.getElementById('lon').textContent = c.lng.toFixed(4);
+        document.getElementById('zoom').textContent = map.getZoom();
+    });
+
+    // ── Schip marker ──────────────────────────────────────────────────────────
+    const shipIcon = L.divIcon({
+        className: '',
+        html: `<div style="
+            background: #4da6ff;
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 0 6px rgba(77,166,255,0.8);
+        "></div>`,
+        iconSize: [10, 10],
+        iconAnchor: [5, 5]
+    });
+    L.marker([53.545, 9.95], { icon: shipIcon })
+        .addTo(map)
+        .bindPopup("<b>MV ELBE STAR</b><br>Snelheid: 12kn");
+
+    // ── 3. Tide Chart ─────────────────────────────────────────────────────────
+    const tideCanvas = document.getElementById('tideChart');
+    const tideCtx = tideCanvas.getContext('2d');
+    // Fix canvas resolutie
+    tideCanvas.width = tideCanvas.offsetWidth || 260;
+    tideCanvas.height = 60;
+    const w = tideCanvas.width;
+
+    // Gradient fill
+    const grad = tideCtx.createLinearGradient(0, 0, 0, 60);
+    grad.addColorStop(0, 'rgba(77,166,255,0.3)');
+    grad.addColorStop(1, 'rgba(77,166,255,0)');
+
+    tideCtx.fillStyle = grad;
+    tideCtx.beginPath();
+    tideCtx.moveTo(0, 60);
+    for (let i = 0; i <= w; i++) {
+        tideCtx.lineTo(i, 30 + Math.sin(i / (w / (Math.PI * 3))) * 18);
+    }
+    tideCtx.lineTo(w, 60);
+    tideCtx.closePath();
+    tideCtx.fill();
+
+    tideCtx.strokeStyle = '#4da6ff';
+    tideCtx.lineWidth = 2;
+    tideCtx.beginPath();
+    for (let i = 0; i <= w; i++) {
+        tideCtx.lineTo(i, 30 + Math.sin(i / (w / (Math.PI * 3))) * 18);
+    }
+    tideCtx.stroke();
+
+    // Huidig niveau stip
+    const curX = Math.round(w * 0.4);
+    const curY = 30 + Math.sin(curX / (w / (Math.PI * 3))) * 18;
+    tideCtx.beginPath();
+    tideCtx.arc(curX, curY, 4, 0, Math.PI * 2);
+    tideCtx.fillStyle = '#4da6ff';
+    tideCtx.fill();
+
+    // ── 4. Windroos ───────────────────────────────────────────────────────────
+    const windCtx = document.getElementById('windCanvas').getContext('2d');
+    function drawWind() {
+        windCtx.clearRect(0, 0, 80, 80);
+
+        // Buitenring
+        windCtx.strokeStyle = '#1a2535';
+        windCtx.lineWidth = 1;
+        windCtx.beginPath();
+        windCtx.arc(40, 40, 35, 0, Math.PI * 2);
+        windCtx.stroke();
+
+        // Kruis
+        windCtx.strokeStyle = '#0f1d2e';
+        windCtx.lineWidth = 1;
+        ['N','O','Z','W'].forEach((dir, i) => {
+            const angle = i * Math.PI / 2;
+            windCtx.beginPath();
+            windCtx.moveTo(40, 40);
+            windCtx.lineTo(40 + Math.sin(angle) * 35, 40 - Math.cos(angle) * 35);
+            windCtx.stroke();
+        });
+
+        // Windnaald NNW = ~337.5° → -22.5° van Noord
+        const angleRad = (-22.5 * Math.PI) / 180;
+        windCtx.save();
+        windCtx.translate(40, 40);
+        windCtx.rotate(angleRad);
+
+        // Pijl omhoog (windrichting)
+        windCtx.strokeStyle = '#4da6ff';
+        windCtx.lineWidth = 2.5;
+        windCtx.beginPath();
+        windCtx.moveTo(0, 28);
+        windCtx.lineTo(0, -28);
+        windCtx.stroke();
+
+        // Pijlpunt
+        windCtx.fillStyle = '#4da6ff';
+        windCtx.beginPath();
+        windCtx.moveTo(0, -28);
+        windCtx.lineTo(-5, -18);
+        windCtx.lineTo(5, -18);
+        windCtx.closePath();
+        windCtx.fill();
+
+        windCtx.restore();
+
+        // N label
+        windCtx.fillStyle = '#6a7d92';
+        windCtx.font = '8px JetBrains Mono, monospace';
+        windCtx.textAlign = 'center';
+        windCtx.fillText('N', 40, 8);
+    }
+    drawWind();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lissabon Port Viewer — European Port Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:      #0a0b0e;
+            --panel:   rgba(12,11,16,0.95);
+            --border:  #1e2030;
+            --accent:  #e8a048;   /* warm amber — Portugese azulejo tint */
+            --warn:    #e05050;
+            --ok:      #4ecfa0;
+            --text:    #ece8df;
+            --muted:   #7a7468;
+            --deep:    #0d1a28;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Poppins', sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ── NAV ── */
+        nav {
+            height: 50px;
+            background: #07070b;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            z-index: 100;
+        }
+        .nav-brand { font-size: 13px; font-weight: 600; color: var(--text); letter-spacing: .3px; }
+        .nav-links { margin-left: auto; display: flex; gap: 6px; }
+        .nav-link {
+            font-size: 13px; color: var(--muted);
+            padding: 6px 16px; border-radius: 4px; cursor: pointer;
+            position: relative; transition: color .2s;
+        }
+        .nav-link:hover { color: var(--text); }
+        .nav-link.active { color: var(--text); }
+        .nav-link.active::after {
+            content: ''; position: absolute;
+            bottom: 0; left: 16px; right: 16px;
+            height: 2px; background: var(--accent);
+        }
+
+        /* ── MAIN LAYOUT ── */
+        .main { flex: 1; display: flex; overflow: hidden; }
+
+        /* ── SIDEBAR ── */
+        .sidebar {
+            width: 292px; flex-shrink: 0;
+            background: var(--panel);
+            border-right: 1px solid var(--border);
+            display: flex; flex-direction: column;
+            overflow-y: auto; z-index: 10;
+        }
+        .sidebar::-webkit-scrollbar { width: 4px; }
+        .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+        .sb-header {
+            padding: 18px 20px 14px;
+            background: #09090e;
+            border-bottom: 1px solid var(--border);
+        }
+        .sb-title { font-size: 20px; font-weight: 700; }
+        .sb-sub {
+            font-size: 10px; font-family: 'JetBrains Mono', monospace;
+            color: var(--muted); margin-top: 3px;
+        }
+        .live-dot {
+            display: inline-flex; align-items: center; gap: 6px;
+            font-size: 9px; font-family: 'JetBrains Mono', monospace;
+            color: var(--ok); margin-top: 6px;
+        }
+        .live-dot::before {
+            content: ''; width: 7px; height: 7px; border-radius: 50%;
+            background: var(--ok); animation: pulse 1.8s infinite;
+        }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+        .sb-section { border-top: 1px solid var(--border); padding: 12px 0; }
+        .sb-section-label {
+            font-size: 9px; font-family: 'JetBrains Mono', monospace;
+            color: var(--muted); padding: 0 20px 10px;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+
+        .stat-grid {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 6px; padding: 0 16px;
+        }
+        .stat-box {
+            background: #0e0e14; border: 1px solid var(--border);
+            border-radius: 5px; padding: 8px 10px;
+        }
+        .stat-val { font-size: 15px; font-weight: 700; }
+        .stat-lbl { font-size: 8px; color: var(--muted); font-family: 'JetBrains Mono', monospace; margin-top: 2px; }
+
+        /* Getij extra stats */
+        .stat-grid-4 {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 6px; padding: 6px 16px 0;
+        }
+
+        /* Bathy legend */
+        .bathy-legend {
+            margin: 10px 16px 0;
+            background: #0e0e14;
+            border: 1px solid var(--border);
+            border-radius: 5px;
+            padding: 8px 10px;
+        }
+        .bathy-legend-title {
+            font-size: 9px; color: var(--muted); margin-bottom: 6px;
+            font-family: 'JetBrains Mono', monospace; text-transform: uppercase;
+        }
+        .bathy-gradient {
+            height: 10px; border-radius: 3px;
+            /* Tagus: diepblauw diep → amber ondiep (Atlantic) */
+            background: linear-gradient(to right,
+                #08306b, #08519c, #2171b5, #4292c6,
+                #6baed6, #9ecae1, #c6dbef, #f0c060
+            );
+            margin-bottom: 4px;
+        }
+        .bathy-labels {
+            display: flex; justify-content: space-between;
+            font-size: 8px; color: var(--muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .bathy-status {
+            font-size: 8px; color: var(--muted);
+            margin-top: 5px; font-family: 'JetBrains Mono', monospace;
+        }
+        .bathy-status span { color: var(--ok); }
+
+        /* Wind section */
+        .wind-wrap {
+            display: flex; padding: 0 16px;
+            gap: 12px; align-items: center;
+        }
+        .wind-stats .stat-val { font-size: 16px; }
+        .wind-stats .stat-lbl { font-size: 8px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+        .bf-bar-wrap { margin-top: 8px; }
+        .bf-bar-bg { height: 4px; background: var(--border); border-radius: 2px; }
+        .bf-bar { height: 4px; background: var(--accent); border-radius: 2px; transition: width .8s; }
+        .bf-label { font-size: 8px; color: var(--muted); font-family: 'JetBrains Mono', monospace; margin-top: 3px; }
+
+        /* ── MAP AREA ── */
+        .map-area { flex: 1; position: relative; background: #08111e; }
+        #portMap { width: 100%; height: 100%; z-index: 1; }
+
+        .map-controls {
+            position: absolute; right: 16px; top: 16px;
+            display: flex; flex-direction: column; gap: 6px; z-index: 1000;
+        }
+        .map-btn {
+            width: 34px; height: 34px;
+            background: var(--panel); border: 1px solid var(--border);
+            border-radius: 5px; color: var(--text);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; font-size: 16px;
+            transition: border-color .2s, color .2s;
+        }
+        .map-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .map-btn.active {
+            border-color: var(--accent); color: var(--accent);
+            background: rgba(232,160,72,0.1);
+        }
+
+        .coord-bar {
+            position: absolute; bottom: 0; left: 0; right: 0; height: 26px;
+            background: #05050a; border-top: 1px solid var(--border);
+            display: flex; align-items: center; padding: 0 16px;
+            font-size: 9px; font-family: 'JetBrains Mono'; color: var(--muted); z-index: 1000;
+        }
+        .coord-bar span { color: var(--text); margin: 0 10px 0 4px; }
+
+        /* Leaflet dark overrides */
+        .leaflet-container { background: #08111e !important; }
+        .leaflet-attribution-flag { display: none !important; }
+        .leaflet-control-attribution {
+            font-size: 8px !important;
+            background: rgba(5,5,10,0.85) !important;
+            color: var(--muted) !important;
+        }
+        .leaflet-control-attribution a { color: var(--muted) !important; }
+
+        /* Schip popup */
+        .leaflet-popup-content-wrapper {
+            background: rgba(12,11,16,0.97) !important;
+            border: 1px solid var(--accent) !important;
+            border-radius: 6px !important;
+            color: var(--text) !important;
+            font-family: 'Poppins', sans-serif !important;
+            font-size: 12px !important;
+        }
+        .leaflet-popup-tip { background: var(--accent) !important; }
+        .leaflet-popup-close-button { color: var(--muted) !important; }
+    </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+    <div class="nav-brand">ESTUARY PORT PORTAL</div>
+    <div class="nav-links">
+        <div class="nav-link active">Tagus</div>
+        <div class="nav-link">Hamburg Port</div>
+    </div>
+</nav>
+
+<div class="main">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+        <div class="sb-header">
+            <div class="sb-title">Porto de Lisboa</div>
+            <div class="sb-sub">RIO TEJO · KM 0 · LISSABON</div>
+            <div class="live-dot" id="clock">LIVE · --:--:-- UTC</div>
+        </div>
+
+        <!-- WATERSTAND / MARÉ -->
+        <div class="sb-section">
+            <div class="sb-section-label">Waterstand / Maré</div>
+            <div style="padding: 0 16px 10px;">
+                <canvas id="tideChart" height="60" style="width:100%; display:block;"></canvas>
+            </div>
+            <div class="stat-grid">
+                <div class="stat-box">
+                    <div class="stat-val" style="color:var(--accent)" id="tideVal">+1.42m</div>
+                    <div class="stat-lbl">Huidig (ZH)</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val" style="color:var(--warn)">16:08</div>
+                    <div class="stat-lbl">Volgende PM</div>
+                </div>
+            </div>
+            <div class="stat-grid-4">
+                <div class="stat-box">
+                    <div class="stat-val" style="color:var(--muted)">09:44</div>
+                    <div class="stat-lbl">Vorige BM</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-val">2.8m</div>
+                    <div class="stat-lbl">Tijverschil</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- WIND / NORTADA -->
+        <div class="sb-section">
+            <div class="sb-section-label">Wind / Nortada</div>
+            <div class="wind-wrap">
+                <canvas id="windCanvas" width="90" height="90"></canvas>
+                <div class="wind-stats">
+                    <div>
+                        <div class="stat-val" id="windLabel">NNW 22kt</div>
+                        <div class="stat-lbl">BEAUFORT <span id="bfNum">5</span></div>
+                    </div>
+                    <div class="bf-bar-wrap">
+                        <div class="bf-bar-bg">
+                            <div class="bf-bar" id="bfBar" style="width:42%"></div>
+                        </div>
+                        <div class="bf-label">Windstoten: <span style="color:var(--warn)" id="gustLabel">30kt</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BATHYMETRIE -->
+        <div class="sb-section">
+            <div class="sb-section-label">Bathymetrie</div>
+            <div class="bathy-legend">
+                <div class="bathy-legend-title">GEBCO Diepte (m) — Taag estuarium</div>
+                <div class="bathy-gradient"></div>
+                <div class="bathy-labels"><span>Diep (Atl.)</span><span>Ondiep (Mar da Palha)</span></div>
+                <div class="bathy-status" id="bathyStatus">Status: <span>ACTIEF</span></div>
+            </div>
+            <div style="padding: 8px 16px 0; font-size: 8px; color: var(--muted); font-family: 'JetBrains Mono';">
+                Bron: ESRI/GEBCO (overzicht) · OpenSeaMap (detail)
+            </div>
+        </div>
+
+    </aside>
+
+    <!-- MAP -->
+    <div class="map-area">
+        <div id="portMap"></div>
+
+        <div class="map-controls">
+            <div class="map-btn" onclick="map.zoomIn()" title="Inzoomen">+</div>
+            <div class="map-btn" onclick="map.zoomOut()" title="Uitzoomen">−</div>
+            <div class="map-btn" onclick="resetMap()" title="Reset weergave">⊙</div>
+            <div class="map-btn active" id="bathyBtn" onclick="toggleBathy()" title="Bathymetrie aan/uit">≈</div>
+        </div>
+
+        <div class="coord-bar">
+            LAT <span id="lat">38.71</span>
+            LON <span id="lon">-9.13</span>
+            ZOOM <span id="zoom">12</span>
+        </div>
+    </div>
+
+</div><!-- /main -->
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+
+// ── 1. Klok ───────────────────────────────────────────────────────────────────
+function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent =
+        `LIVE · ${now.getUTCHours().toString().padStart(2,'0')}:`+
+        `${now.getUTCMinutes().toString().padStart(2,'0')}:`+
+        `${now.getUTCSeconds().toString().padStart(2,'0')} UTC`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── 2. Leaflet kaart — Taag / Lissabon ──────────────────────────────────────
+//   Centrum: Cais do Sodré / Tejo-oever, zoom 12 toont het hele estuarium
+const map = L.map('portMap', { zoomControl: false }).setView([38.708, -9.136], 12);
+
+// Laag A: ESRI Ocean Base — bathymetrie overzicht (t/m zoom 10)
+const esriOcean = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Base/MapServer/tile/{z}/{y}/{x}',
+    { attribution: '© Esri, GEBCO, NOAA', maxZoom: 13, opacity: 1.0 }
+);
+
+// Laag B: ESRI Ocean Reference — namen/labels overlay
+const esriOceanRef = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/Ocean/World_Ocean_Reference/MapServer/tile/{z}/{y}/{x}',
+    { attribution: '', maxZoom: 13, opacity: 0.85 }
+);
+
+// Laag C: CartoDB Dark Matter — donkere basiskaart voor hoge zoom
+const cartoLayer = L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    { attribution: '© OpenStreetMap · © CARTO', subdomains: 'abcd', maxZoom: 19 }
+);
+
+// Laag D: OpenSeaMap — nautische overlay (dieptelots, boeien, loodsposten)
+const openSeaMap = L.tileLayer(
+    'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
+    { attribution: '© OpenSeaMap', maxZoom: 18, opacity: 1.0 }
+);
+
+let bathyEnabled = true;
+const ZOOM_BREAKPOINT = 10;
+
+// Automatische laagwisseling: laag zoom → ESRI Ocean, hoog zoom → CartoDB + OpenSeaMap
+function updateLayers() {
+    const zoom = map.getZoom();
+    const isOverview = zoom <= ZOOM_BREAKPOINT;
+
+    if (!bathyEnabled) {
+        if (!map.hasLayer(cartoLayer))   map.addLayer(cartoLayer);
+        if (map.hasLayer(esriOcean))     map.removeLayer(esriOcean);
+        if (map.hasLayer(esriOceanRef))  map.removeLayer(esriOceanRef);
+        if (map.hasLayer(openSeaMap))    map.removeLayer(openSeaMap);
+    } else if (isOverview) {
+        if (!map.hasLayer(esriOcean))    map.addLayer(esriOcean);
+        if (!map.hasLayer(esriOceanRef)) map.addLayer(esriOceanRef);
+        if (map.hasLayer(cartoLayer))    map.removeLayer(cartoLayer);
+        if (map.hasLayer(openSeaMap))    map.removeLayer(openSeaMap);
+    } else {
+        if (!map.hasLayer(cartoLayer))   map.addLayer(cartoLayer);
+        if (!map.hasLayer(openSeaMap))   map.addLayer(openSeaMap);
+        if (map.hasLayer(esriOcean))     map.removeLayer(esriOcean);
+        if (map.hasLayer(esriOceanRef))  map.removeLayer(esriOceanRef);
+    }
+    updateBathyStatus();
+}
+
+function toggleBathy() {
+    bathyEnabled = !bathyEnabled;
+    document.getElementById('bathyBtn').classList.toggle('active', bathyEnabled);
+    updateLayers();
+}
+
+function updateBathyStatus() {
+    const zoom = map.getZoom();
+    const el = document.getElementById('bathyStatus');
+    if (!bathyEnabled) {
+        el.innerHTML = 'Status: <span style="color:var(--muted)">UIT</span>';
+    } else if (zoom <= ZOOM_BREAKPOINT) {
+        el.innerHTML = 'Modus: <span>ESRI OCEAN</span>';
+    } else {
+        el.innerHTML = 'Modus: <span style="color:#4ecfa0">OPENSEAMAP</span>';
+    }
+}
+
+map.on('zoomend', updateLayers);
+updateLayers();
+
+function resetMap() { map.setView([38.708, -9.136], 12); }
+
+// Coördinaten bar
+map.on('move', () => {
+    const c = map.getCenter();
+    document.getElementById('lat').textContent  = c.lat.toFixed(4);
+    document.getElementById('lon').textContent  = c.lng.toFixed(4);
+    document.getElementById('zoom').textContent = map.getZoom();
+});
+
+// ── Scheepsmarkers op de Taag ─────────────────────────────────────────────────
+const accentColor = '#e8a048';
+
+// Kleur-varianten voor verschillende scheepstypen
+function shipDot(color, shadow) {
+    return L.divIcon({
+        className: '',
+        html: `<div style="
+            background:${color}; width:10px; height:10px;
+            border-radius:50%; border:2px solid rgba(255,255,255,0.6);
+            box-shadow:0 0 8px ${shadow || color};
+        "></div>`,
+        iconSize: [10,10], iconAnchor: [5,5]
+    });
+}
+
+// Container schepen
+L.marker([38.706, -9.165], { icon: shipDot('#e8a048','rgba(232,160,72,0.8)') })
+    .addTo(map)
+    .bindPopup('<b>NM SINTRA</b><br>Type: Containerschip<br>Snelheid: 9.4 kt · hdg 085°<br>Bestemming: Alcântara TCL');
+
+L.marker([38.712, -9.100], { icon: shipDot('#e8a048','rgba(232,160,72,0.8)') })
+    .addTo(map)
+    .bindPopup('<b>SADO STAR</b><br>Type: Tanker<br>Snelheid: 6.2 kt · hdg 090°<br>Bestemming: Barreiro');
+
+// Containerschip uitgaand
+L.marker([38.700, -9.195], { icon: shipDot('#e05050','rgba(224,80,80,0.8)') })
+    .addTo(map)
+    .bindPopup('<b>MSC TEJO</b><br>Type: Containerschip<br>Snelheid: 7.8 kt · hdg 265°<br>Vertrek: TCS Santos');
+
+// Veerboot Cacilhas–Cais do Sodré
+L.marker([38.696, -9.140], { icon: shipDot('#4ecfa0','rgba(78,207,160,0.8)') })
+    .addTo(map)
+    .bindPopup('<b>CACILHAS FERRY</b><br>Type: Veerboot<br>Snelheid: 11.0 kt · hdg 180°<br>Lijn: Cais do Sodré ↔ Cacilhas');
+
+// Gemeerd Portugees marineschip
+L.marker([38.714, -9.128], { icon: shipDot('#7a7468','rgba(122,116,104,0.6)') })
+    .addTo(map)
+    .bindPopup('<b>NRP VASCO DA GAMA</b><br>Type: Patrouillevaartuig<br>Status: Gemeerd — Santa Apolónia');
+
+// ── 3. Getijgrafiek — Taag (semi-diurnaal Atlantisch) ────────────────────────
+// De Taag heeft een tijverschil van ~2.8m, semi-diurnaal 12.4h
+const tideCanvas = document.getElementById('tideChart');
+const tideCtx    = tideCanvas.getContext('2d');
+tideCanvas.width  = tideCanvas.offsetWidth || 260;
+tideCanvas.height = 60;
+const tw = tideCanvas.width;
+
+// Getijcurve tekenen (Atlantic profiel, licht asymmetrisch)
+function drawTide(phase) {
+    tideCtx.clearRect(0, 0, tw, 60);
+
+    // Nul-lijn
+    tideCtx.strokeStyle = 'rgba(232,160,72,0.12)';
+    tideCtx.lineWidth = 1;
+    tideCtx.setLineDash([4,4]);
+    tideCtx.beginPath();
+    tideCtx.moveTo(0, 30); tideCtx.lineTo(tw, 30);
+    tideCtx.stroke();
+    tideCtx.setLineDash([]);
+
+    // Punten berekenen
+    const pts = [];
+    for (let i = 0; i <= tw; i++) {
+        // Semi-diurnaal + kleinere harmonische (M2 + S2)
+        const t = (i / tw) * Math.PI * 4 + (phase || 0);
+        const v = Math.sin(t) * 0.82 + Math.sin(t * 1.93 + 0.4) * 0.18;
+        pts.push({ x: i, y: 30 - v * 22 });
+    }
+
+    // Vulling onder de curve
+    const grad = tideCtx.createLinearGradient(0, 0, 0, 60);
+    grad.addColorStop(0, 'rgba(232,160,72,0.28)');
+    grad.addColorStop(1, 'rgba(232,160,72,0.02)');
+    tideCtx.fillStyle = grad;
+    tideCtx.beginPath();
+    tideCtx.moveTo(0, 60);
+    pts.forEach(p => tideCtx.lineTo(p.x, p.y));
+    tideCtx.lineTo(tw, 60);
+    tideCtx.closePath();
+    tideCtx.fill();
+
+    // Lijn
+    tideCtx.strokeStyle = '#e8a048';
+    tideCtx.lineWidth = 2;
+    tideCtx.lineJoin = 'round';
+    tideCtx.beginPath();
+    pts.forEach((p, i) => i === 0 ? tideCtx.moveTo(p.x, p.y) : tideCtx.lineTo(p.x, p.y));
+    tideCtx.stroke();
+
+    // "Nu"-stip op 40%
+    const nx = Math.round(tw * 0.40);
+    const ny = pts[nx]?.y ?? 30;
+    tideCtx.beginPath();
+    tideCtx.arc(nx, ny, 4, 0, Math.PI * 2);
+    tideCtx.fillStyle = '#e05050';
+    tideCtx.fill();
+
+    // Tijdlabels
+    tideCtx.fillStyle = 'rgba(122,116,104,0.75)';
+    tideCtx.font = '8px "JetBrains Mono", monospace';
+    tideCtx.textAlign = 'left';  tideCtx.fillText('−12h', 4, 10);
+    tideCtx.textAlign = 'right'; tideCtx.fillText('+36h', tw - 4, 10);
+    tideCtx.textAlign = 'left';
+
+    // Huidige waterstandwaarde updaten
+    const curVal = (1.4 + Math.sin(phase || 0) * 1.3).toFixed(2);
+    document.getElementById('tideVal').textContent = (curVal >= 0 ? '+' : '') + curVal + 'm';
+}
+
+// Animeer getij langzaam
+let tidePhase = 0.6;
+function animateTide() {
+    drawTide(tidePhase);
+    tidePhase += 0.003;
+    requestAnimationFrame(animateTide);
+}
+animateTide();
+
+// ── 4. Windroos — Nortada ────────────────────────────────────────────────────
+// De Nortada is de dominante Portugese zomerwind: N tot NNW, gemiddeld BF4–5
+const windCanvas = document.getElementById('windCanvas');
+const wCtx = windCanvas.getContext('2d');
+let windDeg    = 340;   // NNW
+let windKt     = 22;
+let windTarget = 340;
+
+const windDirNames = ['N','NNO','NO','ONO','O','OZO','ZO','ZZO',
+                      'Z','ZZW','ZW','WZW','W','WNW','NW','NNW'];
+function degToName(d) { return windDirNames[Math.round(((d % 360) + 360) % 360 / 22.5) % 16]; }
+function ktToBf(k) {
+    if(k<1)return 0; if(k<4)return 1; if(k<7)return 2; if(k<11)return 3;
+    if(k<17)return 4; if(k<22)return 5; if(k<28)return 6; if(k<34)return 7;
+    if(k<41)return 8; return 9;
+}
+
+function drawWind() {
+    const W=90, H=90, cx=45, cy=45, R=38;
+    wCtx.clearRect(0, 0, W, H);
+
+    // Buitenring
+    wCtx.strokeStyle = '#1e2030';
+    wCtx.lineWidth = 1;
+    wCtx.beginPath(); wCtx.arc(cx, cy, R, 0, Math.PI*2); wCtx.stroke();
+
+    // Binnenringen
+    [R*0.6, R*0.3].forEach(r => {
+        wCtx.strokeStyle = 'rgba(255,255,255,0.04)';
+        wCtx.beginPath(); wCtx.arc(cx, cy, r, 0, Math.PI*2); wCtx.stroke();
+    });
+
+    // Streepjes
+    for (let i = 0; i < 36; i++) {
+        const a = (i / 36) * Math.PI * 2;
+        const inner = i % 9 === 0 ? R - 9 : R - 5;
+        wCtx.strokeStyle = i % 9 === 0 ? '#3a4050' : '#1e2430';
+        wCtx.lineWidth = 1;
+        wCtx.beginPath();
+        wCtx.moveTo(cx + Math.sin(a)*inner, cy - Math.cos(a)*inner);
+        wCtx.lineTo(cx + Math.sin(a)*(R-1), cy - Math.cos(a)*(R-1));
+        wCtx.stroke();
+    }
+
+    // Kardinalen
+    [['N',0,'#e05050'],['O',90,'#7a7468'],['Z',180,'#7a7468'],['W',270,'#7a7468']].forEach(([l,a,c]) => {
+        const rad = (a/180)*Math.PI;
+        wCtx.font = 'bold 8px "JetBrains Mono", monospace';
+        wCtx.fillStyle = c; wCtx.textAlign = 'center'; wCtx.textBaseline = 'middle';
+        wCtx.fillText(l, cx + Math.sin(rad)*(R-14), cy - Math.cos(rad)*(R-14));
+    });
+
+    // Windpijl (amber)
+    const rad = (windDeg / 180) * Math.PI;
+    const aLen = R * 0.60;
+    const ax = cx + Math.sin(rad)*aLen, ay = cy - Math.cos(rad)*aLen;
+    wCtx.strokeStyle = '#e8a048'; wCtx.lineWidth = 2.5; wCtx.lineCap = 'round';
+    wCtx.beginPath(); wCtx.moveTo(cx, cy); wCtx.lineTo(ax, ay); wCtx.stroke();
+
+    // Pijlpunt
+    const perp = rad + Math.PI/2;
+    wCtx.fillStyle = '#e8a048';
+    wCtx.beginPath(); wCtx.moveTo(ax, ay);
+    wCtx.lineTo(ax - Math.sin(rad)*9 + Math.sin(perp)*4, ay + Math.cos(rad)*9 - Math.cos(perp)*4);
+    wCtx.lineTo(ax - Math.sin(rad)*9 - Math.sin(perp)*4, ay + Math.cos(rad)*9 + Math.cos(perp)*4);
+    wCtx.closePath(); wCtx.fill();
+
+    // Middelpunt
+    wCtx.beginPath(); wCtx.arc(cx, cy, 3, 0, Math.PI*2);
+    wCtx.fillStyle = '#7a7468'; wCtx.fill();
+
+    // Label en Beaufort updaten
+    const bf = ktToBf(windKt);
+    document.getElementById('windLabel').textContent = `${degToName(windDeg)} ${Math.round(windKt)}kt`;
+    document.getElementById('bfNum').textContent     = bf;
+    document.getElementById('bfBar').style.width     = (bf/9*100)+'%';
+    document.getElementById('gustLabel').textContent = Math.round(windKt + 8)+'kt';
+}
+
+// Nortada-animatie: blijft grotendeels N/NNW, kleine schommelingen
+setInterval(() => {
+    windTarget = 330 + (Math.random() - 0.5) * 45;  // 308–353° range
+    windKt = Math.max(14, Math.min(32, windKt + (Math.random() - 0.45) * 3));
+}, 3500);
+
+function animateWind() {
+    windDeg += (windTarget - windDeg) * 0.04;
+    if (windDeg < 0) windDeg += 360;
+    if (windDeg >= 360) windDeg -= 360;
+    drawWind();
+    requestAnimationFrame(animateWind);
+}
+animateWind();
+
+</script>
+</body>
+</html>
